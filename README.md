@@ -1,0 +1,326 @@
+# openemr-mcp
+
+[![PyPI](https://img.shields.io/pypi/v/openemr-mcp)](https://pypi.org/project/openemr-mcp/)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+**Model Context Protocol (MCP) server for OpenEMR** — connect any MCP-compatible AI assistant (Claude Desktop, Cursor, VS Code Copilot) directly to your OpenEMR instance.
+
+## Features
+
+17 MCP tools covering:
+
+| Category | Tools |
+|---|---|
+| Patients | `openemr_patient_search` |
+| Appointments | `openemr_appointment_list` |
+| Medications | `openemr_medication_list`, `openemr_drug_interaction_check` |
+| Providers | `openemr_provider_search` |
+| FDA Safety | `openemr_fda_adverse_events`, `openemr_fda_drug_label` |
+| Symptom Lookup | `openemr_symptom_lookup` |
+| Drug Safety Flags | `openemr_drug_safety_flag_create/list/update/delete` |
+| Clinical Trends | `openemr_lab_trends`, `openemr_vital_trends`, `openemr_questionnaire_trends` |
+| Health Trajectory | `openemr_health_trajectory` |
+| Visit Prep | `openemr_visit_prep` |
+
+All tools work in **mock mode** out of the box — no OpenEMR installation required for evaluation.
+
+## Quick Start
+
+### Install
+
+```bash
+pip install openemr-mcp
+# or with uv:
+uv add openemr-mcp
+```
+
+### Run (stdio transport)
+
+```bash
+# Mock mode — no OpenEMR needed
+OPENEMR_DATA_SOURCE=mock openemr-mcp
+
+# Against a live OpenEMR FHIR API
+OPENEMR_DATA_SOURCE=api \
+  OPENEMR_API_BASE_URL=https://your-openemr/apis/default \
+  OPENEMR_OAUTH_HOST=https://your-openemr \
+  OPENEMR_OAUTH_CLIENT_ID=... \
+  OPENEMR_OAUTH_CLIENT_SECRET=... \
+  OPENEMR_OAUTH_USER=admin \
+  OPENEMR_OAUTH_PASS=... \
+  openemr-mcp
+```
+
+## Claude Desktop Configuration
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
+
+```json
+{
+  "mcpServers": {
+    "openemr": {
+      "command": "uvx",
+      "args": ["openemr-mcp"],
+      "env": {
+        "OPENEMR_DATA_SOURCE": "api",
+        "OPENEMR_API_BASE_URL": "https://your-openemr.example.com/apis/default",
+        "OPENEMR_OAUTH_HOST": "https://your-openemr.example.com",
+        "OPENEMR_OAUTH_CLIENT_ID": "your_client_id",
+        "OPENEMR_OAUTH_CLIENT_SECRET": "your_client_secret",
+        "OPENEMR_OAUTH_USER": "admin",
+        "OPENEMR_OAUTH_PASS": "your_password"
+      }
+    }
+  }
+}
+```
+
+For mock mode (demo / evaluation):
+
+```json
+{
+  "mcpServers": {
+    "openemr": {
+      "command": "uvx",
+      "args": ["openemr-mcp"],
+      "env": {
+        "OPENEMR_DATA_SOURCE": "mock"
+      }
+    }
+  }
+}
+```
+
+## Data Sources
+
+### Patient / Clinical Data (`OPENEMR_DATA_SOURCE`)
+
+| Value | Description |
+|---|---|
+| `mock` (default) | Built-in curated demo data — 24 patients, no network required |
+| `db` | Direct MySQL connection to OpenEMR database |
+| `api` | OpenEMR FHIR R4 REST API (recommended for production) |
+
+### Drug Interactions (`DRUG_INTERACTION_SOURCE`)
+
+| Value | Description |
+|---|---|
+| `mock` (default) | 10 built-in drug pairs — always works, no network |
+| `rxnorm` | NLM RxNorm Interaction API — free, no API key needed |
+
+### Symptom Checker (`SYMPTOM_SOURCE`)
+
+| Value | Description |
+|---|---|
+| `mock` (default) | Curated local dataset — 10 clinical groups |
+| `infermedica` | Infermedica Symptom Checker API ([register here](https://developer.infermedica.com/)) — free tier 100 calls/day |
+
+### FDA Data (`OPENFDA_SOURCE`)
+
+| Value | Description |
+|---|---|
+| `mock` (default) | Built-in mock data for 6 common drugs |
+| `live` | Live OpenFDA API — free, optional key for higher rate limits |
+
+## Environment Variables
+
+See [.env.example](.env.example) for the full list with comments.
+
+Key variables:
+
+```bash
+# Data source
+OPENEMR_DATA_SOURCE=mock        # mock | db | api
+
+# MySQL (when OPENEMR_DATA_SOURCE=db)
+OPENEMR_DB_HOST=localhost
+OPENEMR_DB_PORT=3306
+OPENEMR_DB_USER=openemr
+OPENEMR_DB_PASS=openemr
+OPENEMR_DB_NAME=openemr
+
+# FHIR API (when OPENEMR_DATA_SOURCE=api)
+OPENEMR_API_BASE_URL=https://your-openemr/apis/default
+OPENEMR_OAUTH_HOST=https://your-openemr
+OPENEMR_OAUTH_CLIENT_ID=...
+OPENEMR_OAUTH_CLIENT_SECRET=...
+OPENEMR_OAUTH_USER=admin
+OPENEMR_OAUTH_PASS=...
+
+# Optional external APIs
+DRUG_INTERACTION_SOURCE=mock    # mock | rxnorm
+SYMPTOM_SOURCE=mock             # mock | infermedica
+INFERMEDICA_APP_ID=
+INFERMEDICA_APP_KEY=
+OPENFDA_SOURCE=mock             # mock | live
+OPENFDA_API_KEY=
+```
+
+## Tool Reference
+
+### `openemr_patient_search`
+Search patients by name. Returns patient ID, DOB, sex, city.
+
+```json
+{ "query": "Jane" }
+```
+
+### `openemr_appointment_list`
+List upcoming appointments for a patient.
+
+```json
+{ "patient_id": "p001" }
+```
+
+### `openemr_medication_list`
+Return the current medication list for a patient.
+
+```json
+{ "patient_id": "p001" }
+```
+
+### `openemr_drug_interaction_check`
+Check a list of medications for known drug-drug interactions.
+
+```json
+{ "medications": ["warfarin", "aspirin", "metformin"] }
+```
+
+### `openemr_provider_search`
+Search healthcare providers by specialty and/or location.
+
+```json
+{ "specialty": "Cardiology", "location": "Boston" }
+```
+
+### `openemr_fda_adverse_events`
+Query FDA FAERS database for adverse event reports on a drug.
+
+```json
+{ "drug_name": "metformin", "limit": 5 }
+```
+
+### `openemr_fda_drug_label`
+Retrieve official FDA drug label including boxed warnings and contraindications.
+
+```json
+{ "drug_name": "warfarin" }
+```
+
+### `openemr_symptom_lookup`
+Look up possible conditions for a list of symptoms.
+
+```json
+{ "symptoms": ["chest pain", "shortness of breath"] }
+```
+
+### `openemr_drug_safety_flag_create`
+Create a drug safety flag for a patient.
+
+```json
+{
+  "patient_id": "p001",
+  "drug_name": "warfarin",
+  "description": "Patient reported unusual bruising",
+  "flag_type": "adverse_event",
+  "severity": "HIGH"
+}
+```
+
+### `openemr_drug_safety_flag_list`
+List all drug safety flags for a patient.
+
+```json
+{ "patient_id": "p001", "status_filter": "active" }
+```
+
+### `openemr_drug_safety_flag_update`
+Update a drug safety flag's severity, description, or status.
+
+```json
+{ "flag_id": "uuid-...", "severity": "MODERATE", "status": "resolved" }
+```
+
+### `openemr_drug_safety_flag_delete`
+Delete a drug safety flag by ID.
+
+```json
+{ "flag_id": "uuid-..." }
+```
+
+### `openemr_lab_trends`
+Return longitudinal lab trajectories (A1c, LDL, eGFR).
+
+```json
+{ "patient_id": "p001", "metrics": ["a1c", "ldl"], "window_months": 24 }
+```
+
+### `openemr_vital_trends`
+Return longitudinal vital sign trajectories (weight, BP).
+
+```json
+{ "patient_id": "p001", "metrics": ["weight", "bp_systolic", "bp_diastolic"] }
+```
+
+### `openemr_questionnaire_trends`
+Return longitudinal questionnaire score trajectories (PHQ-9).
+
+```json
+{ "patient_id": "p001", "instrument": "PHQ-9", "window_months": 24 }
+```
+
+### `openemr_health_trajectory`
+Aggregate all metric trajectories and compute clinical drift alerts.
+
+```json
+{ "patient_id": "p001", "window_months": 24 }
+```
+
+### `openemr_visit_prep`
+Generate a pre-visit clinical brief: top risks, medication safety, care gaps, and suggested agenda.
+
+```json
+{ "patient_id": "p001", "window_months": 24 }
+```
+
+## Development
+
+```bash
+# Clone and install in editable mode
+git clone https://github.com/shruti-create/openemr-mcp
+cd openemr-mcp
+pip install -e ".[dev]"
+
+# Run tests (mock mode, no external dependencies)
+pytest
+
+# Start server locally
+OPENEMR_DATA_SOURCE=mock openemr-mcp
+```
+
+## Architecture
+
+```
+src/openemr_mcp/
+├── server.py              # MCP server — registers all 17 tools
+├── config.py              # Pydantic-settings configuration
+├── schemas.py             # All Pydantic response schemas
+├── auth.py                # OpenEMR OAuth2 token manager
+├── data_source.py         # Data source resolver
+├── tools/                 # 13 tool modules (17 MCP tools)
+├── repositories/          # Data access (MySQL, FHIR R4, SQLite)
+└── services/              # Business logic (OpenFDA, trajectory alerts, visit prep)
+```
+
+Drug safety flags are persisted in a local SQLite database at `~/.openemr_mcp/drug_safety_flags.db`.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+## Contributing
+
+Pull requests welcome. Please open an issue first for major changes.
+
+This project is part of the [AgentForge](https://github.com/shruti-create/agentforge-openemr) OpenEMR AI toolkit.

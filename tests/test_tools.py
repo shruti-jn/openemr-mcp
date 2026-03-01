@@ -1,0 +1,293 @@
+"""Smoke tests — verify all 17 MCP tools return expected types in mock mode."""
+import pytest
+
+from openemr_mcp.schemas import (
+    DrugInteractionResponse,
+    DrugSafetyFlag,
+    DrugSafetyFlagListResponse,
+    FDAAdverseEventSummary,
+    FDADrugLabelResult,
+    HealthTrajectoryResponse,
+    MedicationListResponse,
+    ProviderSearchResponse,
+    SymptomLookupResponse,
+    VisitPrepResponse,
+)
+
+
+# ---------------------------------------------------------------------------
+# Patient
+# ---------------------------------------------------------------------------
+
+def test_patient_search_returns_matches():
+    from openemr_mcp.tools.patient import run_patient_search
+    results = run_patient_search("John")
+    assert isinstance(results, list)
+    assert len(results) >= 1
+    assert results[0].patient_id.startswith("p")
+
+
+def test_patient_search_no_results():
+    from openemr_mcp.tools.patient import run_patient_search
+    results = run_patient_search("zzznomatchxxx")
+    assert isinstance(results, list)
+    assert len(results) == 0
+
+
+# ---------------------------------------------------------------------------
+# Appointments
+# ---------------------------------------------------------------------------
+
+def test_appointment_list_known_patient():
+    from openemr_mcp.tools.appointments import run_appointment_list
+    from openemr_mcp.schemas import Appointment
+    results = run_appointment_list("p001")
+    assert isinstance(results, list)
+    if results:
+        assert isinstance(results[0], Appointment)
+
+
+def test_appointment_list_unknown_patient():
+    from openemr_mcp.tools.appointments import run_appointment_list
+    results = run_appointment_list("p999")
+    assert isinstance(results, list)
+    assert len(results) == 0
+
+
+# ---------------------------------------------------------------------------
+# Medications
+# ---------------------------------------------------------------------------
+
+def test_medication_list_known_patient():
+    from openemr_mcp.tools.medications import run_medication_list
+    result = run_medication_list("p001")
+    assert isinstance(result, MedicationListResponse)
+    assert len(result.medications) >= 1
+    assert result.medications[0].drug
+
+
+def test_medication_list_unknown_patient():
+    from openemr_mcp.tools.medications import run_medication_list
+    result = run_medication_list("p999")
+    assert isinstance(result, MedicationListResponse)
+    assert result.medications == []
+
+
+# ---------------------------------------------------------------------------
+# Drug Interactions
+# ---------------------------------------------------------------------------
+
+def test_drug_interaction_check_known_pair():
+    from openemr_mcp.tools.drug_interactions import run_drug_interaction_check
+    result = run_drug_interaction_check(["warfarin", "aspirin"])
+    assert isinstance(result, DrugInteractionResponse)
+    assert len(result.interactions) >= 1
+
+
+def test_drug_interaction_check_no_interaction():
+    from openemr_mcp.tools.drug_interactions import run_drug_interaction_check
+    result = run_drug_interaction_check(["vitamin_c"])
+    assert isinstance(result, DrugInteractionResponse)
+    assert result.has_critical is False
+
+
+def test_drug_interaction_check_empty():
+    from openemr_mcp.tools.drug_interactions import run_drug_interaction_check
+    result = run_drug_interaction_check([])
+    assert isinstance(result, DrugInteractionResponse)
+    assert result.interactions == []
+
+
+# ---------------------------------------------------------------------------
+# Providers
+# ---------------------------------------------------------------------------
+
+def test_provider_search_by_specialty():
+    from openemr_mcp.tools.providers import run_provider_search
+    result = run_provider_search(specialty="Cardiology")
+    assert isinstance(result, ProviderSearchResponse)
+    assert len(result.providers) >= 1
+    assert result.specialty_queried == "Cardiology"
+
+
+def test_provider_search_no_filters():
+    from openemr_mcp.tools.providers import run_provider_search
+    result = run_provider_search()
+    assert isinstance(result, ProviderSearchResponse)
+    assert len(result.providers) >= 5
+
+
+# ---------------------------------------------------------------------------
+# FDA
+# ---------------------------------------------------------------------------
+
+def test_fda_adverse_events_known_drug():
+    from openemr_mcp.tools.fda import run_fda_adverse_events
+    result = run_fda_adverse_events("metformin")
+    assert isinstance(result, FDAAdverseEventSummary)
+    assert result.drug_name
+    assert result.total_reports >= 0
+
+
+def test_fda_drug_label_known_drug():
+    from openemr_mcp.tools.fda import run_fda_drug_label
+    result = run_fda_drug_label("metformin")
+    assert isinstance(result, FDADrugLabelResult)
+    assert result.drug_name
+
+
+# ---------------------------------------------------------------------------
+# Symptoms
+# ---------------------------------------------------------------------------
+
+def test_symptom_lookup_chest_pain():
+    from openemr_mcp.tools.symptoms import run_symptom_lookup
+    result = run_symptom_lookup(["chest pain", "shortness of breath"])
+    assert isinstance(result, SymptomLookupResponse)
+    assert len(result.possible_conditions) >= 1
+    assert result.urgency_level in ("URGENT", "SEE_DOCTOR", "MONITOR")
+    assert result.disclaimer
+
+
+def test_symptom_lookup_no_match():
+    from openemr_mcp.tools.symptoms import run_symptom_lookup
+    result = run_symptom_lookup(["blurry_nonexistent_symptom_xyz"])
+    assert isinstance(result, SymptomLookupResponse)
+    assert result.urgency_level == "MONITOR"
+
+
+# ---------------------------------------------------------------------------
+# Drug Safety Flags (CRUD)
+# ---------------------------------------------------------------------------
+
+def test_drug_safety_flag_crud(tmp_path, monkeypatch):
+    """Create → list → update → delete a drug safety flag."""
+    import openemr_mcp.repositories.drug_safety as ds_repo
+
+    # Redirect the SQLite DB to a temp directory
+    test_db = tmp_path / "flags.db"
+    monkeypatch.setattr(ds_repo, "_DB_PATH", test_db)
+    monkeypatch.setattr(ds_repo, "_conn", None)
+
+    from openemr_mcp.tools.drug_safety import (
+        run_create_drug_safety_flag,
+        run_get_drug_safety_flags,
+        run_update_drug_safety_flag,
+        run_delete_drug_safety_flag,
+    )
+
+    # Create
+    flag = run_create_drug_safety_flag(
+        patient_id="p001",
+        drug_name="warfarin",
+        description="Bleeding risk noted",
+        severity="HIGH",
+    )
+    assert isinstance(flag, DrugSafetyFlag)
+    assert flag.drug_name == "warfarin"
+    flag_id = flag.id
+
+    # List
+    listing = run_get_drug_safety_flags("p001")
+    assert isinstance(listing, DrugSafetyFlagListResponse)
+    assert any(f.id == flag_id for f in listing.flags)
+
+    # Update
+    updated = run_update_drug_safety_flag(flag_id, severity="MODERATE")
+    assert updated is not None
+    assert updated.severity == "MODERATE"
+
+    # Delete
+    deleted = run_delete_drug_safety_flag(flag_id)
+    assert deleted is True
+
+    # List again — should be empty
+    listing2 = run_get_drug_safety_flags("p001")
+    assert not any(f.id == flag_id for f in listing2.flags)
+
+
+# ---------------------------------------------------------------------------
+# Lab Trends
+# ---------------------------------------------------------------------------
+
+def test_lab_trends_all_metrics():
+    from openemr_mcp.tools.lab_trends import run_lab_trends
+    result = run_lab_trends("p001")
+    assert isinstance(result, list)
+    assert len(result) >= 1
+    assert result[0].points
+
+
+def test_lab_trends_single_metric():
+    from openemr_mcp.tools.lab_trends import run_lab_trends
+    result = run_lab_trends("p001", metrics=["a1c"])
+    assert isinstance(result, list)
+    names = [t.metric for t in result]
+    assert "a1c" in names
+
+
+# ---------------------------------------------------------------------------
+# Vital Trends
+# ---------------------------------------------------------------------------
+
+def test_vital_trends_all_metrics():
+    from openemr_mcp.tools.vital_trends import run_vital_trends
+    result = run_vital_trends("p001")
+    assert isinstance(result, list)
+    assert len(result) >= 1
+
+
+def test_vital_trends_weight_only():
+    from openemr_mcp.tools.vital_trends import run_vital_trends
+    result = run_vital_trends("p001", metrics=["weight"])
+    assert isinstance(result, list)
+    assert all(t.metric == "weight" for t in result)
+
+
+# ---------------------------------------------------------------------------
+# Questionnaire Trends
+# ---------------------------------------------------------------------------
+
+def test_questionnaire_trends_phq9():
+    from openemr_mcp.tools.questionnaire import run_questionnaire_trends
+    result = run_questionnaire_trends("p001")
+    assert isinstance(result, list)
+    if result:
+        assert result[0].metric in ("PHQ-9", "phq9")
+
+
+# ---------------------------------------------------------------------------
+# Health Trajectory
+# ---------------------------------------------------------------------------
+
+def test_health_trajectory():
+    from openemr_mcp.tools.trajectory import run_health_trajectory
+    result = run_health_trajectory("p001")
+    assert isinstance(result, HealthTrajectoryResponse)
+    assert result.patient_id == "p001"
+    assert isinstance(result.trajectories, list)
+    assert isinstance(result.alerts, list)
+
+
+# ---------------------------------------------------------------------------
+# Visit Prep
+# ---------------------------------------------------------------------------
+
+def test_visit_prep_returns_brief():
+    from openemr_mcp.tools.visit_prep import run_visit_prep
+    result = run_visit_prep("p001")
+    assert isinstance(result, VisitPrepResponse)
+    assert result.metadata.patient_id == "p001"
+    brief = result.brief
+    assert brief.top_risks is not None
+    assert brief.medication_safety is not None
+    assert brief.care_gaps is not None
+    assert brief.agenda is not None
+
+
+def test_visit_prep_unknown_patient():
+    from openemr_mcp.tools.visit_prep import run_visit_prep
+    result = run_visit_prep("p999")
+    assert isinstance(result, VisitPrepResponse)
+    # Should return abstentions for missing data, not crash
+    assert result.metadata.patient_id == "p999"
