@@ -288,7 +288,7 @@ Generate a pre-visit clinical brief: top risks, medication safety, care gaps, an
 
 ```bash
 # Clone and install in editable mode
-git clone https://github.com/shruti-create/openemr-mcp
+git clone https://github.com/shruti-jn/openemr-mcp
 cd openemr-mcp
 pip install -e ".[dev]"
 
@@ -323,4 +323,4 @@ MIT — see [LICENSE](LICENSE).
 
 Pull requests welcome. Please open an issue first for major changes.
 
-This project is part of the [AgentForge](https://github.com/shruti-create/agentforge-openemr) OpenEMR AI toolkit.
+This project is part of the [AgentForge](https://github.com/shruti-jn/agentforge-openemr) OpenEMR AI toolkit.

@@ -36,9 +36,9 @@ dependencies = [
 openemr-mcp = "openemr_mcp.server:run"
 
 [project.urls]
-Homepage = "https://github.com/shruti-aggarwal/openemr-mcp"
-Repository = "https://github.com/shruti-aggarwal/openemr-mcp"
-Issues = "https://github.com/shruti-aggarwal/openemr-mcp/issues"
+Homepage = "https://github.com/shruti-jn/openemr-mcp"
+Repository = "https://github.com/shruti-jn/openemr-mcp"
+Issues = "https://github.com/shruti-jn/openemr-mcp/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/openemr_mcp"]
