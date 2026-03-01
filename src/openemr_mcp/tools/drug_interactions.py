@@ -79,7 +79,7 @@ def _run_openfda_check(medications: List[str]) -> Optional[DrugInteractionRespon
             total = sum(c.get("count", 0) for c in counts if isinstance(c, dict))
             severity = "HIGH" if total >= 50 else "MODERATE" if total >= 5 else "LOW"
             has_critical = has_critical or severity == "HIGH"
-            top_reaction = counts[0]["term"] if counts else "Adverse event reported together"
+            top_reaction = counts[0].get("term", "Unknown") if counts else "Adverse event reported together"
             
             # Skip if no meaningful signal
             if total == 0:
