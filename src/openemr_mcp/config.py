@@ -6,8 +6,8 @@ from typing import Optional
 from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict
 
-# Load .env defaults from cwd, then user home.
-# Precedence: process env > cwd .env > home .env
+# Load .env defaults from cwd only.
+# Precedence: process env > cwd .env
 _cwd_env = dotenv_values(Path.cwd() / ".env") if (Path.cwd() / ".env").exists() else {}
 for _key, _value in _cwd_env.items():
     if _value is not None and _key not in os.environ:
@@ -40,7 +40,7 @@ class Settings(BaseModel):
     openemr_docker_service: Optional[str] = os.getenv("OPENEMR_DOCKER_SERVICE")
     openemr_docker_cwd: Optional[str] = os.getenv("OPENEMR_DOCKER_CWD")
 
-    # Drug interaction source: mock (default) | rxnorm (NLM RxNorm — free)
+    # Drug interaction source: mock (default) | openfda (OpenFDA FAERS — free, no key) | rxnorm (deprecated/unavailable)
     drug_interaction_source: str = os.getenv("DRUG_INTERACTION_SOURCE", "mock")
 
     # Symptom lookup source: mock (default) | infermedica (free tier 100/day)

@@ -23,7 +23,7 @@ def get_http_client():
             self._token_manager = OAuth2TokenManager(settings)
 
         def _get_headers(self) -> dict:
-            token = self._token_manager.get_token()
+            token = self._token_manager.get_valid_access_token()
             return {"Authorization": f"Bearer {token}", "Accept": "application/json"}
 
         def get_fhir(self, resource_path: str, params: Optional[dict] = None) -> dict:

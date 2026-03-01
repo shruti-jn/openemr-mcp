@@ -1,0 +1,530 @@
+[
+  {
+    "id": "ps_001",
+    "tool": "patient_search",
+    "description": "Search by first name returns at least one match",
+    "input": {"query": "John"},
+    "expect": {"min_results": 1, "result_type": "list", "fields": ["patient_id", "full_name"]},
+    "tags": ["happy_path", "patient"]
+  },
+  {
+    "id": "ps_002",
+    "tool": "patient_search",
+    "description": "Search by last name returns matches",
+    "input": {"query": "Smith"},
+    "expect": {"min_results": 1, "result_type": "list"},
+    "tags": ["happy_path", "patient"]
+  },
+  {
+    "id": "ps_003",
+    "tool": "patient_search",
+    "description": "Gibberish query returns empty list, not an error",
+    "input": {"query": "zzznomatch_xyzabc"},
+    "expect": {"result_count": 0, "result_type": "list"},
+    "tags": ["edge_case", "patient"]
+  },
+  {
+    "id": "ps_004",
+    "tool": "patient_search",
+    "description": "Single character query does not crash",
+    "input": {"query": "A"},
+    "expect": {"result_type": "list"},
+    "tags": ["edge_case", "patient"]
+  },
+  {
+    "id": "ps_005",
+    "tool": "patient_search",
+    "description": "Empty string query returns empty list",
+    "input": {"query": ""},
+    "expect": {"result_type": "list"},
+    "tags": ["edge_case", "patient"]
+  },
+  {
+    "id": "pb_001",
+    "tool": "patient_by_id",
+    "description": "Known patient ID returns patient record",
+    "input": {"pid": 1},
+    "expect": {"not_none": true, "fields": ["patient_id", "full_name"]},
+    "tags": ["happy_path", "patient"]
+  },
+  {
+    "id": "pb_002",
+    "tool": "patient_by_id",
+    "description": "Unknown patient ID returns None, not an error",
+    "input": {"pid": 999999},
+    "expect": {"is_none": true},
+    "tags": ["edge_case", "patient"]
+  },
+  {
+    "id": "pb_003",
+    "tool": "patient_by_id",
+    "description": "Negative ID does not crash",
+    "input": {"pid": -1},
+    "expect": {"is_none": true},
+    "tags": ["edge_case", "patient"]
+  },
+  {
+    "id": "al_001",
+    "tool": "appointment_list",
+    "description": "Known patient has at least one appointment",
+    "input": {"patient_id": "p001"},
+    "expect": {"result_type": "list", "min_results": 1, "fields": ["appointment_id"]},
+    "tags": ["happy_path", "appointments"]
+  },
+  {
+    "id": "al_002",
+    "tool": "appointment_list",
+    "description": "Unknown patient returns empty list",
+    "input": {"patient_id": "p999"},
+    "expect": {"result_count": 0, "result_type": "list"},
+    "tags": ["edge_case", "appointments"]
+  },
+  {
+    "id": "al_003",
+    "tool": "appointment_list",
+    "description": "Second known patient returns appointments",
+    "input": {"patient_id": "p002"},
+    "expect": {"result_type": "list"},
+    "tags": ["happy_path", "appointments"]
+  },
+  {
+    "id": "ml_001",
+    "tool": "medication_list",
+    "description": "Known patient returns medications with drug name",
+    "input": {"patient_id": "p001"},
+    "expect": {"schema": "MedicationListResponse", "min_medications": 1, "first_medication_fields": ["drug"]},
+    "tags": ["happy_path", "medications"]
+  },
+  {
+    "id": "ml_002",
+    "tool": "medication_list",
+    "description": "Unknown patient returns empty medication list",
+    "input": {"patient_id": "p999"},
+    "expect": {"schema": "MedicationListResponse", "medication_count": 0},
+    "tags": ["edge_case", "medications"]
+  },
+  {
+    "id": "ml_003",
+    "tool": "medication_list",
+    "description": "Medication records include drug and dosage fields",
+    "input": {"patient_id": "p001"},
+    "expect": {"schema": "MedicationListResponse", "first_medication_fields": ["drug", "dosage"]},
+    "tags": ["happy_path", "medications"]
+  },
+  {
+    "id": "di_001",
+    "tool": "drug_interaction_check",
+    "description": "Warfarin + aspirin produces a critical interaction",
+    "input": {"medications": ["warfarin", "aspirin"]},
+    "expect": {"schema": "DrugInteractionResponse", "has_critical": true, "min_interactions": 1},
+    "tags": ["happy_path", "drug_interactions", "safety"]
+  },
+  {
+    "id": "di_002",
+    "tool": "drug_interaction_check",
+    "description": "Single low-risk drug returns no interactions",
+    "input": {"medications": ["vitamin_c"]},
+    "expect": {"schema": "DrugInteractionResponse", "has_critical": false},
+    "tags": ["happy_path", "drug_interactions"]
+  },
+  {
+    "id": "di_003",
+    "tool": "drug_interaction_check",
+    "description": "Empty medication list returns empty interactions",
+    "input": {"medications": []},
+    "expect": {"schema": "DrugInteractionResponse", "interaction_count": 0},
+    "tags": ["edge_case", "drug_interactions"]
+  },
+  {
+    "id": "di_004",
+    "tool": "drug_interaction_check",
+    "description": "Metformin + alcohol has a known interaction",
+    "input": {"medications": ["metformin", "alcohol"]},
+    "expect": {"schema": "DrugInteractionResponse", "min_interactions": 1},
+    "tags": ["happy_path", "drug_interactions", "safety"]
+  },
+  {
+    "id": "di_005",
+    "tool": "drug_interaction_check",
+    "description": "Three-drug combination does not crash",
+    "input": {"medications": ["warfarin", "aspirin", "ibuprofen"]},
+    "expect": {"schema": "DrugInteractionResponse", "min_interactions": 1},
+    "tags": ["happy_path", "drug_interactions", "safety"]
+  },
+  {
+    "id": "prov_001",
+    "tool": "provider_search",
+    "description": "Search by specialty returns relevant providers",
+    "input": {"specialty": "Cardiology"},
+    "expect": {"schema": "ProviderSearchResponse", "min_providers": 1, "specialty_queried": "Cardiology"},
+    "tags": ["happy_path", "providers"]
+  },
+  {
+    "id": "prov_002",
+    "tool": "provider_search",
+    "description": "No filters returns all providers",
+    "input": {},
+    "expect": {"schema": "ProviderSearchResponse", "min_providers": 5},
+    "tags": ["happy_path", "providers"]
+  },
+  {
+    "id": "prov_003",
+    "tool": "provider_search",
+    "description": "Unknown specialty returns empty or minimal list without error",
+    "input": {"specialty": "NonexistentSpecialty_XYZ"},
+    "expect": {"schema": "ProviderSearchResponse"},
+    "tags": ["edge_case", "providers"]
+  },
+  {
+    "id": "prov_004",
+    "tool": "provider_search",
+    "description": "Search by location returns results",
+    "input": {"location": "Boston"},
+    "expect": {"schema": "ProviderSearchResponse"},
+    "tags": ["happy_path", "providers"]
+  },
+  {
+    "id": "fda_ae_001",
+    "tool": "fda_adverse_events",
+    "description": "Known drug returns adverse event summary",
+    "input": {"drug_name": "metformin"},
+    "expect": {"schema": "FDAAdverseEventSummary", "fields": ["drug_name", "total_reports"]},
+    "tags": ["happy_path", "fda"]
+  },
+  {
+    "id": "fda_ae_002",
+    "tool": "fda_adverse_events",
+    "description": "Warfarin adverse events returned",
+    "input": {"drug_name": "warfarin"},
+    "expect": {"schema": "FDAAdverseEventSummary", "min_total_reports": 0},
+    "tags": ["happy_path", "fda", "safety"]
+  },
+  {
+    "id": "fda_ae_003",
+    "tool": "fda_adverse_events",
+    "description": "Unknown drug returns empty summary without error",
+    "input": {"drug_name": "unknowndrugxyz999"},
+    "expect": {"schema": "FDAAdverseEventSummary"},
+    "tags": ["edge_case", "fda"]
+  },
+  {
+    "id": "fda_ae_004",
+    "tool": "fda_adverse_events",
+    "description": "Limit parameter accepted",
+    "input": {"drug_name": "aspirin", "limit": 3},
+    "expect": {"schema": "FDAAdverseEventSummary"},
+    "tags": ["happy_path", "fda"]
+  },
+  {
+    "id": "fda_dl_001",
+    "tool": "fda_drug_label",
+    "description": "Known drug returns label result",
+    "input": {"drug_name": "metformin"},
+    "expect": {"schema": "FDADrugLabelResult", "fields": ["drug_name"]},
+    "tags": ["happy_path", "fda"]
+  },
+  {
+    "id": "fda_dl_002",
+    "tool": "fda_drug_label",
+    "description": "Lisinopril label returned",
+    "input": {"drug_name": "lisinopril"},
+    "expect": {"schema": "FDADrugLabelResult"},
+    "tags": ["happy_path", "fda"]
+  },
+  {
+    "id": "fda_dl_003",
+    "tool": "fda_drug_label",
+    "description": "Unknown drug returns result without crash",
+    "input": {"drug_name": "unknowndrugxyz999"},
+    "expect": {"schema": "FDADrugLabelResult"},
+    "tags": ["edge_case", "fda"]
+  },
+  {
+    "id": "sym_001",
+    "tool": "symptom_lookup",
+    "description": "Chest pain + shortness of breath triggers URGENT urgency",
+    "input": {"symptoms": ["chest pain", "shortness of breath"]},
+    "expect": {"schema": "SymptomLookupResponse", "urgency_level": "URGENT", "min_conditions": 1, "has_disclaimer": true},
+    "tags": ["happy_path", "symptoms", "safety"]
+  },
+  {
+    "id": "sym_002",
+    "tool": "symptom_lookup",
+    "description": "Unknown symptom returns MONITOR urgency without error",
+    "input": {"symptoms": ["blurry_nonexistent_symptom_xyz"]},
+    "expect": {"schema": "SymptomLookupResponse", "urgency_level": "MONITOR"},
+    "tags": ["edge_case", "symptoms"]
+  },
+  {
+    "id": "sym_003",
+    "tool": "symptom_lookup",
+    "description": "Fever alone returns conditions and urgency level",
+    "input": {"symptoms": ["fever"]},
+    "expect": {"schema": "SymptomLookupResponse", "urgency_in": ["URGENT", "SEE_DOCTOR", "MONITOR"]},
+    "tags": ["happy_path", "symptoms"]
+  },
+  {
+    "id": "sym_004",
+    "tool": "symptom_lookup",
+    "description": "Response always includes disclaimer",
+    "input": {"symptoms": ["headache"]},
+    "expect": {"schema": "SymptomLookupResponse", "has_disclaimer": true},
+    "tags": ["happy_path", "symptoms", "safety"]
+  },
+  {
+    "id": "sym_005",
+    "tool": "symptom_lookup",
+    "description": "Empty symptom list does not crash",
+    "input": {"symptoms": []},
+    "expect": {"schema": "SymptomLookupResponse"},
+    "tags": ["edge_case", "symptoms"]
+  },
+  {
+    "id": "lt_001",
+    "tool": "lab_trends",
+    "description": "Known patient returns all lab trajectories",
+    "input": {"patient_id": "p001"},
+    "expect": {"result_type": "list", "min_results": 1, "each_has_points": true},
+    "tags": ["happy_path", "lab_trends"]
+  },
+  {
+    "id": "lt_002",
+    "tool": "lab_trends",
+    "description": "A1C metric filter returns only A1C trajectory",
+    "input": {"patient_id": "p001", "metrics": ["a1c"]},
+    "expect": {"result_type": "list", "metric_names_include": ["a1c"]},
+    "tags": ["happy_path", "lab_trends"]
+  },
+  {
+    "id": "lt_003",
+    "tool": "lab_trends",
+    "description": "Unknown patient in mock mode returns demo fixtures without crash",
+    "input": {"patient_id": "p999"},
+    "expect": {"result_type": "list"},
+    "tags": ["edge_case", "lab_trends"]
+  },
+  {
+    "id": "lt_004",
+    "tool": "lab_trends",
+    "description": "Window months parameter is accepted",
+    "input": {"patient_id": "p001", "window_months": 12},
+    "expect": {"result_type": "list"},
+    "tags": ["happy_path", "lab_trends"]
+  },
+  {
+    "id": "vt_001",
+    "tool": "vital_trends",
+    "description": "Known patient returns vital trajectories",
+    "input": {"patient_id": "p001"},
+    "expect": {"result_type": "list", "min_results": 1},
+    "tags": ["happy_path", "vital_trends"]
+  },
+  {
+    "id": "vt_002",
+    "tool": "vital_trends",
+    "description": "Weight-only filter returns weight trajectory",
+    "input": {"patient_id": "p001", "metrics": ["weight"]},
+    "expect": {"result_type": "list", "all_metric": "weight"},
+    "tags": ["happy_path", "vital_trends"]
+  },
+  {
+    "id": "vt_003",
+    "tool": "vital_trends",
+    "description": "Unknown patient in mock mode returns demo fixtures without crash",
+    "input": {"patient_id": "p999"},
+    "expect": {"result_type": "list"},
+    "tags": ["edge_case", "vital_trends"]
+  },
+  {
+    "id": "vt_004",
+    "tool": "vital_trends",
+    "description": "BP systolic metric accepted",
+    "input": {"patient_id": "p001", "metrics": ["bp_systolic"]},
+    "expect": {"result_type": "list"},
+    "tags": ["happy_path", "vital_trends"]
+  },
+  {
+    "id": "qt_001",
+    "tool": "questionnaire_trends",
+    "description": "PHQ-9 questionnaire data returned for known patient",
+    "input": {"patient_id": "p001"},
+    "expect": {"result_type": "list"},
+    "tags": ["happy_path", "questionnaire"]
+  },
+  {
+    "id": "qt_002",
+    "tool": "questionnaire_trends",
+    "description": "Unknown patient in mock mode returns demo fixtures without crash",
+    "input": {"patient_id": "p999"},
+    "expect": {"result_type": "list"},
+    "tags": ["edge_case", "questionnaire"]
+  },
+  {
+    "id": "ht_001",
+    "tool": "health_trajectory",
+    "description": "Known patient returns trajectory response with alerts",
+    "input": {"patient_id": "p001"},
+    "expect": {"schema": "HealthTrajectoryResponse", "fields": ["patient_id", "trajectories", "alerts"]},
+    "tags": ["happy_path", "trajectory"]
+  },
+  {
+    "id": "ht_002",
+    "tool": "health_trajectory",
+    "description": "Unknown patient returns response without crash",
+    "input": {"patient_id": "p999"},
+    "expect": {"schema": "HealthTrajectoryResponse", "patient_id": "p999"},
+    "tags": ["edge_case", "trajectory"]
+  },
+  {
+    "id": "ht_003",
+    "tool": "health_trajectory",
+    "description": "Trajectory response trajectories field is a list",
+    "input": {"patient_id": "p001"},
+    "expect": {"schema": "HealthTrajectoryResponse", "trajectories_is_list": true},
+    "tags": ["happy_path", "trajectory"]
+  },
+  {
+    "id": "vp_001",
+    "tool": "visit_prep",
+    "description": "Known patient returns full visit brief",
+    "input": {"patient_id": "p001", "window_months": 24},
+    "expect": {"schema": "VisitPrepResponse", "fields": ["brief", "metadata", "evidence_store"]},
+    "tags": ["happy_path", "visit_prep"]
+  },
+  {
+    "id": "vp_002",
+    "tool": "visit_prep",
+    "description": "Unknown patient returns abstentions, not a crash",
+    "input": {"patient_id": "p999"},
+    "expect": {"schema": "VisitPrepResponse", "patient_id": "p999"},
+    "tags": ["edge_case", "visit_prep"]
+  },
+  {
+    "id": "vp_003",
+    "tool": "visit_prep",
+    "description": "Brief always contains top_risks, medication_safety, care_gaps, agenda",
+    "input": {"patient_id": "p001"},
+    "expect": {"schema": "VisitPrepResponse", "brief_fields": ["top_risks", "medication_safety", "care_gaps", "agenda"]},
+    "tags": ["happy_path", "visit_prep", "safety"]
+  },
+  {
+    "id": "vp_004",
+    "tool": "visit_prep",
+    "description": "Short window produces valid brief",
+    "input": {"patient_id": "p001", "window_months": 6},
+    "expect": {"schema": "VisitPrepResponse"},
+    "tags": ["happy_path", "visit_prep"]
+  },
+  {
+    "id": "vp_005",
+    "tool": "visit_prep",
+    "description": "Metadata contains patient_id and generated_at timestamp",
+    "input": {"patient_id": "p002"},
+    "expect": {"schema": "VisitPrepResponse", "metadata_fields": ["patient_id", "generated_at"]},
+    "tags": ["happy_path", "visit_prep"]
+  },
+  {
+    "id": "dsf_001",
+    "tool": "drug_safety_flag_create",
+    "description": "Create a HIGH severity flag and verify fields",
+    "input": {"patient_id": "p001", "drug_name": "warfarin", "description": "Bleeding risk", "severity": "HIGH"},
+    "expect": {"schema": "DrugSafetyFlag", "fields": ["id", "drug_name", "severity"], "severity": "HIGH"},
+    "tags": ["happy_path", "drug_safety", "crud"]
+  },
+  {
+    "id": "dsf_002",
+    "tool": "drug_safety_flag_create",
+    "description": "Create a MODERATE severity flag",
+    "input": {"patient_id": "p001", "drug_name": "aspirin", "description": "GI irritation", "severity": "MODERATE"},
+    "expect": {"schema": "DrugSafetyFlag", "severity": "MODERATE"},
+    "tags": ["happy_path", "drug_safety", "crud"]
+  },
+  {
+    "id": "dsf_003",
+    "tool": "drug_safety_flag_list",
+    "description": "List flags for patient returns response",
+    "input": {"patient_id": "p001"},
+    "expect": {"schema": "DrugSafetyFlagListResponse", "fields": ["flags"]},
+    "tags": ["happy_path", "drug_safety", "crud"]
+  },
+  {
+    "id": "dsf_004",
+    "tool": "drug_safety_flag_list",
+    "description": "List flags for patient with no flags returns empty list",
+    "input": {"patient_id": "p_no_flags_patient"},
+    "expect": {"schema": "DrugSafetyFlagListResponse"},
+    "tags": ["edge_case", "drug_safety", "crud"]
+  },
+  {
+    "id": "auth_001",
+    "tool": "auth_interface",
+    "description": "OAuth2TokenManager exposes get_valid_access_token, not get_token",
+    "input": {},
+    "expect": {"method_exists": "get_valid_access_token", "method_absent": "get_token"},
+    "tags": ["regression", "auth"]
+  },
+  {
+    "id": "auth_002",
+    "tool": "data_source_contract",
+    "description": "data_source module calls get_valid_access_token in source",
+    "input": {},
+    "expect": {"source_contains": "get_valid_access_token", "source_not_contains": "get_token()"},
+    "tags": ["regression", "auth"]
+  },
+  {
+    "id": "config_001",
+    "tool": "config_env_contract",
+    "description": "Settings reads OPENEMR_DB_PASSWORD not OPENEMR_DB_PASS",
+    "input": {},
+    "expect": {"env_var_read": "OPENEMR_DB_PASSWORD"},
+    "tags": ["regression", "config"]
+  },
+  {
+    "id": "config_002",
+    "tool": "config_env_contract",
+    "description": "Settings reads OPENEMR_OAUTH_USERNAME not OPENEMR_OAUTH_USER",
+    "input": {},
+    "expect": {"env_var_read": "OPENEMR_OAUTH_USERNAME"},
+    "tags": ["regression", "config"]
+  },
+  {
+    "id": "config_003",
+    "tool": "config_env_contract",
+    "description": "Settings reads OPENEMR_OAUTH_PASSWORD not OPENEMR_OAUTH_PASS",
+    "input": {},
+    "expect": {"env_var_read": "OPENEMR_OAUTH_PASSWORD"},
+    "tags": ["regression", "config"]
+  },
+  {
+    "id": "nf_001",
+    "tool": "no_fabrication_contract",
+    "description": "No-fabrication mode uses explicit error messaging for unavailable live sources",
+    "input": {},
+    "expect": {"source_contains": ["no fallback data used"]},
+    "tags": ["regression", "safety", "no_fabrication"]
+  },
+  {
+    "id": "nf_002",
+    "tool": "no_fabrication_contract",
+    "description": "No-fabrication mode removes mock fallback log language from live-source paths",
+    "input": {},
+    "expect": {"source_not_contains": ["falling back to mock"]},
+    "tags": ["regression", "safety", "no_fabrication"]
+  },
+  {
+    "id": "nf_003",
+    "tool": "no_fabrication_contract",
+    "description": "No-fabrication mode keeps mock behavior explicitly gated to mock mode only",
+    "input": {},
+    "expect": {"target_modules": ["openfda_client.py"], "source_contains": ["if settings.openfda_source == \"mock\":"]},
+    "tags": ["regression", "safety", "no_fabrication"]
+  },
+  {
+    "id": "nf_004",
+    "tool": "no_fabrication_contract",
+    "description": "No-fabrication mode surfaces strict unavailable-source errors in all external tools",
+    "input": {},
+    "expect": {"source_contains": ["unavailable; no fallback data used"]},
+    "tags": ["regression", "safety", "no_fabrication"]
+  }
+]

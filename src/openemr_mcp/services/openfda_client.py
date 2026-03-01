@@ -5,15 +5,14 @@ APIs:
   - Drug Adverse Events (FAERS): https://api.fda.gov/drug/event.json
   - Drug Labels:                  https://api.fda.gov/drug/label.json
 """
-import logging
 from typing import Optional
 
 import httpx
 
 from openemr_mcp.config import settings
+from openemr_mcp.repositories._errors import ToolError
 from openemr_mcp.schemas import FDAAdverseEventSummary, FDAAdverseEvent, FDADrugLabelResult
 
-_log = logging.getLogger("openemr_mcp")
 _OPENFDA_BASE = "https://api.fda.gov"
 _REQUEST_TIMEOUT = 8.0
 
@@ -179,11 +178,11 @@ def get_adverse_events(drug_name: str, limit: int = 5) -> FDAAdverseEventSummary
     except httpx.HTTPStatusError as exc:
         if exc.response.status_code == 404:
             return FDAAdverseEventSummary(drug_name=drug_name, total_reports=0, serious_reports=0, top_reactions=[])
-        _log.warning("OpenFDA adverse events API error for %r: %s", drug_name, exc)
-        return _get_mock_adverse_events(drug_name)
+        raise ToolError(
+            f"OpenFDA adverse events unavailable (HTTP {exc.response.status_code}); no fallback data used."
+        ) from exc
     except Exception as exc:
-        _log.warning("OpenFDA adverse events call failed for %r: %s", drug_name, exc)
-        return _get_mock_adverse_events(drug_name)
+        raise ToolError("OpenFDA adverse events unavailable; no fallback data used.") from exc
 
 
 def get_drug_label(drug_name: str) -> FDADrugLabelResult:
@@ -197,7 +196,12 @@ def get_drug_label(drug_name: str) -> FDADrugLabelResult:
                 data = resp.json()
                 if data.get("results"):
                     return _parse_drug_label(drug_name, data)
+            elif resp.status_code >= 400 and resp.status_code != 404:
+                raise ToolError(
+                    f"OpenFDA drug label unavailable (HTTP {resp.status_code}); no fallback data used."
+                )
         return FDADrugLabelResult(drug_name=drug_name)
     except Exception as exc:
-        _log.warning("OpenFDA label call failed for %r: %s", drug_name, exc)
-        return _get_mock_drug_label(drug_name)
+        if isinstance(exc, ToolError):
+            raise
+        raise ToolError("OpenFDA drug label unavailable; no fallback data used.") from exc

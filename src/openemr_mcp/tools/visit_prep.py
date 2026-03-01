@@ -1,6 +1,9 @@
 """Visit prep tool: assemble brief from collectors + rules; verifier enforces evidence_ids."""
+import logging
 from datetime import datetime, timezone
 from typing import List, Optional
+
+logger = logging.getLogger(__name__)
 
 from openemr_mcp.schemas import (
     Abstention, EvidenceStore, VisitPrepMetadata, VisitPrepResponse,
@@ -17,7 +20,8 @@ def _build_clinical_payload(patient_id: str, window_months: int) -> dict:
 
     try:
         lab_trajectories = run_lab_trends(patient_id, window_months=window_months)
-    except Exception:
+    except Exception as exc:
+        logger.warning("visit_prep: lab_trends failed for %s: %s", patient_id, exc, exc_info=True)
         lab_trajectories = []
     labs = []
     for traj in lab_trajectories:
@@ -26,7 +30,8 @@ def _build_clinical_payload(patient_id: str, window_months: int) -> dict:
 
     try:
         vital_trajectories = run_vital_trends(patient_id, window_months=window_months)
-    except Exception:
+    except Exception as exc:
+        logger.warning("visit_prep: vital_trends failed for %s: %s", patient_id, exc, exc_info=True)
         vital_trajectories = []
     vitals: list = []
     bp_by_ts: dict = {}
@@ -45,7 +50,8 @@ def _build_clinical_payload(patient_id: str, window_months: int) -> dict:
     try:
         med_response = run_medication_list(patient_id)
         meds_raw = med_response.medications
-    except Exception:
+    except Exception as exc:
+        logger.warning("visit_prep: medication_list failed for %s: %s", patient_id, exc, exc_info=True)
         meds_raw = []
     medications = [{"drug": m.drug, "dose": (m.dosage or ""), "route": "", "status": (m.status or ""), "effective_date": ""} for m in meds_raw]
 
@@ -65,14 +71,16 @@ def _build_context_payload(patient_id: str) -> dict:
         try:
             apts = get_appointments(patient_id, get_openemr_connection)
             appointments = [{"appointment_id": a.appointment_id, "start_time": a.start_time or "", "status": "scheduled", "reason": a.reason or ""} for a in apts]
-        except Exception:
+        except Exception as exc:
+            logger.warning("visit_prep: appointments failed for %s: %s", patient_id, exc, exc_info=True)
             appointments = []
         try:
             pid_int = int((patient_id or "").lstrip("pP").lstrip("0") or "0")
             patient = get_patient_by_id(pid_int, get_openemr_connection)
             if patient:
                 demographics = {"dob": patient.dob, "sex": patient.sex, "city": patient.city, "name": patient.full_name}
-        except Exception:
+        except Exception as exc:
+            logger.warning("visit_prep: demographics failed for %s: %s", patient_id, exc, exc_info=True)
             demographics = None
 
     return {"appointments": appointments, "demographics": demographics, "care_team": care_team}

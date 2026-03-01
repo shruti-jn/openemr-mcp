@@ -8,6 +8,7 @@ from typing import List, Optional
 import httpx
 
 from openemr_mcp.config import settings
+from openemr_mcp.repositories._errors import ToolError
 from openemr_mcp.schemas import PossibleCondition, SymptomLookupResponse
 
 _log = logging.getLogger("openemr_mcp")
@@ -63,7 +64,7 @@ def _run_infermedica_check(symptoms: List[str]) -> Optional[SymptomLookupRespons
     app_id = settings.infermedica_app_id
     app_key = settings.infermedica_app_key
     if not app_id or not app_key:
-        _log.warning("SYMPTOM_SOURCE=infermedica but credentials not set — falling back to mock")
+        _log.warning("SYMPTOM_SOURCE=infermedica but credentials not set")
         return None
     headers = {"App-Id": app_id, "App-Key": app_key, "Content-Type": "application/json"}
     symptom_text = ", ".join(s.strip() for s in symptoms if s and s.strip())
@@ -108,5 +109,5 @@ def run_symptom_lookup(symptoms: List[str]) -> SymptomLookupResponse:
         result = _run_infermedica_check(symptoms)
         if result is not None:
             return result
-        _log.warning("Infermedica check failed — falling back to mock")
+        raise ToolError("Symptom source 'infermedica' unavailable; no fallback data used.")
     return _run_mock_check(symptoms)

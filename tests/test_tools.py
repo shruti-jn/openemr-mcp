@@ -13,6 +13,7 @@ from openemr_mcp.schemas import (
     SymptomLookupResponse,
     VisitPrepResponse,
 )
+from openemr_mcp.repositories._errors import ToolError
 
 
 # ---------------------------------------------------------------------------
@@ -96,6 +97,78 @@ def test_drug_interaction_check_empty():
     result = run_drug_interaction_check([])
     assert isinstance(result, DrugInteractionResponse)
     assert result.interactions == []
+
+
+def test_drug_interaction_openfda(monkeypatch):
+    """OpenFDA provider returns interactions using FAERS co-reporting."""
+    import types
+    from openemr_mcp.tools import drug_interactions
+
+    monkeypatch.setattr(drug_interactions.settings, "drug_interaction_source", "openfda")
+
+    sample = {
+        "results": [
+            {"term": "Hemorrhage", "count": 120},
+            {"term": "Headache", "count": 10},
+        ]
+    }
+
+    def fake_get(url, params=None, timeout=None):
+        resp = types.SimpleNamespace()
+        resp.status_code = 200
+        resp.json = lambda: sample
+        def raise_for_status(): ...
+        resp.raise_for_status = raise_for_status
+        return resp
+
+    monkeypatch.setattr(drug_interactions.httpx, "get", fake_get)
+
+    result = drug_interactions.run_drug_interaction_check(["warfarin", "aspirin"])
+    assert result.has_critical is True
+    assert result.interactions
+    assert result.interactions[0].severity in ("HIGH", "MODERATE")
+
+
+def test_drug_interaction_openfda_strict_no_fallback(monkeypatch):
+    """OpenFDA failure raises ToolError without fallback to mock."""
+    import pytest
+    from openemr_mcp.tools import drug_interactions
+    from openemr_mcp.repositories._errors import ToolError
+    
+    monkeypatch.setattr(drug_interactions.settings, "drug_interaction_source", "openfda")
+    
+    def fake_get_failure(url, params=None, timeout=None):
+        raise Exception("API unavailable")
+    
+    monkeypatch.setattr(drug_interactions.httpx, "get", fake_get_failure)
+    
+    with pytest.raises(ToolError) as exc_info:
+        drug_interactions.run_drug_interaction_check(["warfarin", "aspirin"])
+    
+    error_msg = str(exc_info.value).lower()
+    assert "openfda" in error_msg
+    assert "no fallback data used" in error_msg
+
+
+def test_drug_interaction_rxnorm_strict_no_fallback(monkeypatch):
+    """RxNorm failure raises ToolError without fallback to mock."""
+    import pytest
+    from openemr_mcp.tools import drug_interactions
+    from openemr_mcp.repositories._errors import ToolError
+    
+    monkeypatch.setattr(drug_interactions.settings, "drug_interaction_source", "rxnorm")
+    
+    def fake_get_failure(url, params=None, timeout=None):
+        raise Exception("404 Not Found")
+    
+    monkeypatch.setattr(drug_interactions.httpx, "get", fake_get_failure)
+    
+    with pytest.raises(ToolError) as exc_info:
+        drug_interactions.run_drug_interaction_check(["warfarin", "aspirin"])
+    
+    error_msg = str(exc_info.value).lower()
+    assert "rxnorm" in error_msg
+    assert "no fallback data used" in error_msg
 
 
 # ---------------------------------------------------------------------------
@@ -291,3 +364,66 @@ def test_visit_prep_unknown_patient():
     assert isinstance(result, VisitPrepResponse)
     # Should return abstentions for missing data, not crash
     assert result.metadata.patient_id == "p999"
+
+
+# ---------------------------------------------------------------------------
+# Auth interface regression guard
+# ---------------------------------------------------------------------------
+
+def test_oauth2_token_manager_exposes_get_valid_access_token():
+    """Regression: data_source._get_headers calls get_valid_access_token, not get_token.
+    If the method is renamed again this test will catch the mismatch before it ships."""
+    from openemr_mcp.auth import OAuth2TokenManager
+    assert callable(getattr(OAuth2TokenManager, "get_valid_access_token", None)), (
+        "OAuth2TokenManager must expose get_valid_access_token — "
+        "data_source._get_headers depends on it"
+    )
+    assert not hasattr(OAuth2TokenManager, "get_token"), (
+        "OAuth2TokenManager must not expose 'get_token' — use get_valid_access_token"
+    )
+
+
+def test_get_http_client_method_name_contract():
+    """Verify _OpenEMRClient._get_headers calls get_valid_access_token.
+    Inspects source to catch future renames without needing a live OpenEMR."""
+    import inspect
+    from openemr_mcp import data_source
+    src = inspect.getsource(data_source)
+    assert "get_valid_access_token" in src, (
+        "data_source must call get_valid_access_token, not get_token"
+    )
+    assert "get_token()" not in src, (
+        "data_source must not call the non-existent get_token() method"
+    )
+
+
+# ---------------------------------------------------------------------------
+# No-fabrication guards for live external sources
+# ---------------------------------------------------------------------------
+
+def test_rxnorm_source_does_not_fallback_to_mock(monkeypatch):
+    from openemr_mcp.tools import drug_interactions
+    monkeypatch.setattr(drug_interactions.settings, "drug_interaction_source", "rxnorm")
+    monkeypatch.setattr(drug_interactions, "_run_rxnorm_check", lambda meds: None)
+    with pytest.raises(ToolError, match="no fallback data used"):
+        drug_interactions.run_drug_interaction_check(["warfarin", "aspirin"])
+
+
+def test_infermedica_source_does_not_fallback_to_mock(monkeypatch):
+    from openemr_mcp.tools import symptoms
+    monkeypatch.setattr(symptoms.settings, "symptom_source", "infermedica")
+    monkeypatch.setattr(symptoms, "_run_infermedica_check", lambda symptoms_list: None)
+    with pytest.raises(ToolError, match="no fallback data used"):
+        symptoms.run_symptom_lookup(["chest pain"])
+
+
+def test_openfda_live_failure_does_not_fallback_to_mock(monkeypatch):
+    from openemr_mcp.services import openfda_client
+    monkeypatch.setattr(openfda_client.settings, "openfda_source", "live")
+
+    def _raise_connect_error(*args, **kwargs):
+        raise openfda_client.httpx.ConnectError("network unavailable")
+
+    monkeypatch.setattr(openfda_client.httpx, "get", _raise_connect_error)
+    with pytest.raises(ToolError, match="no fallback data used"):
+        openfda_client.get_adverse_events("metformin")

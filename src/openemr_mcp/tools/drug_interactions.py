@@ -1,6 +1,6 @@
 """
 Drug interaction check tool.
-DRUG_INTERACTION_SOURCE: mock (default) | rxnorm
+DRUG_INTERACTION_SOURCE: mock (default) | rxnorm | openfda
 """
 import logging
 from typing import List, Optional
@@ -8,6 +8,7 @@ from typing import List, Optional
 import httpx
 
 from openemr_mcp.config import settings
+from openemr_mcp.repositories._errors import ToolError
 from openemr_mcp.schemas import DrugInteraction, DrugInteractionResponse
 
 _log = logging.getLogger("openemr_mcp")
@@ -31,6 +32,8 @@ for _item in _INTERACTION_DB:
     _PAIR_INDEX[_key] = _item
 
 _RXNORM_BASE = "https://rxnav.nlm.nih.gov/REST"
+_OPENFDA_BASE = "https://api.fda.gov"
+_OPENFDA_TIMEOUT = 8.0
 
 
 def _run_mock_check(medications: List[str]) -> DrugInteractionResponse:
@@ -46,15 +49,81 @@ def _run_mock_check(medications: List[str]) -> DrugInteractionResponse:
     return DrugInteractionResponse(medications_checked=meds, interactions=interactions, has_critical=has_critical)
 
 
+def _run_openfda_check(medications: List[str]) -> Optional[DrugInteractionResponse]:
+    meds = [m.strip() for m in medications if m and m.strip()]
+    if len(meds) < 2:
+        return DrugInteractionResponse(medications_checked=meds, interactions=[], has_critical=False)
+    interactions: List[DrugInteraction] = []
+    has_critical = False
+    # Pairwise queries to OpenFDA FAERS to see co-reported reactions
+    for i in range(len(meds)):
+        for j in range(i + 1, len(meds)):
+            a = meds[i]
+            b = meds[j]
+            try:
+                params = {
+                    "search": f'patient.drug.medicinalproduct:"{a}" AND patient.drug.medicinalproduct:"{b}"',
+                    "count": "patient.reaction.reactionmeddrapt.exact",
+                    "limit": 5,
+                }
+                r = httpx.get(f"{_OPENFDA_BASE}/drug/event.json", params=params, timeout=_OPENFDA_TIMEOUT)
+                r.raise_for_status()
+                data = r.json()
+            except Exception as exc:
+                _log.warning("OpenFDA interaction lookup failed for %r + %r: %s", a, b, exc)
+                return None
+            counts = data.get("results") or []
+            if not isinstance(counts, list):
+                continue
+            # Flag critical if any reaction is commonly co-reported
+            total = sum(c.get("count", 0) for c in counts if isinstance(c, dict))
+            severity = "HIGH" if total >= 50 else "MODERATE" if total >= 5 else "LOW"
+            has_critical = has_critical or severity == "HIGH"
+            top_reaction = counts[0]["term"] if counts else "Adverse event reported together"
+            
+            # Skip if no meaningful signal
+            if total == 0:
+                continue
+                
+            interactions.append(
+                DrugInteraction(
+                    drug_a=a,
+                    drug_b=b,
+                    severity=severity,
+                    description=(
+                        f"OpenFDA FAERS co-reporting for {a} + {b}: {total} reports. "
+                        f"Top reaction: {top_reaction}. Note: Co-reporting indicates correlation, "
+                        f"not definitive causation. Verify with clinical guidelines."
+                    ),
+                )
+            )
+    return DrugInteractionResponse(medications_checked=meds, interactions=interactions, has_critical=has_critical)
+
+
 def _resolve_rxcui(drug_name: str) -> Optional[str]:
     try:
-        r = httpx.get(f"{_RXNORM_BASE}/rxcui.json", params={"name": drug_name, "allsrc": "0", "search": "1"}, timeout=5.0)
+        r = httpx.get(f"{_RXNORM_BASE}/rxcui.json", params={"name": drug_name}, timeout=5.0)
         r.raise_for_status()
         rxnorm_ids = r.json().get("idGroup", {}).get("rxnormId") or []
         return rxnorm_ids[0] if rxnorm_ids else None
     except Exception as exc:
         _log.warning("RxNorm rxcui lookup failed for %r: %s", drug_name, exc)
         return None
+
+
+def _fetch_rxnorm_interactions(rxcuis: list[str]) -> Optional[dict]:
+    if not rxcuis:
+        return None
+    # RxNorm docs/examples use '+'-delimited rxcuis; some gateways reject space-delimited values.
+    candidates = ["+".join(rxcuis), ",".join(rxcuis)]
+    for rxcuis_param in candidates:
+        try:
+            r = httpx.get(f"{_RXNORM_BASE}/interaction/list.json", params={"rxcuis": rxcuis_param}, timeout=10.0)
+            r.raise_for_status()
+            return r.json()
+        except Exception as exc:
+            _log.warning("RxNorm interaction list call failed for rxcuis=%r: %s", rxcuis_param, exc)
+    return None
 
 
 def _run_rxnorm_check(medications: List[str]) -> Optional[DrugInteractionResponse]:
@@ -68,13 +137,8 @@ def _run_rxnorm_check(medications: List[str]) -> Optional[DrugInteractionRespons
             rxcui_map[drug] = cui
     if len(rxcui_map) < 2:
         return None
-    rxcuis_param = " ".join(rxcui_map.values())
-    try:
-        r = httpx.get(f"{_RXNORM_BASE}/interaction/list.json", params={"rxcuis": rxcuis_param}, timeout=10.0)
-        r.raise_for_status()
-        data = r.json()
-    except Exception as exc:
-        _log.warning("RxNorm interaction list call failed: %s", exc)
+    data = _fetch_rxnorm_interactions(list(rxcui_map.values()))
+    if data is None:
         return None
     interactions: List[DrugInteraction] = []
     seen_pairs: set = set()
@@ -109,5 +173,10 @@ def run_drug_interaction_check(medications: List[str]) -> DrugInteractionRespons
         result = _run_rxnorm_check(medications)
         if result is not None:
             return result
-        _log.warning("RxNorm check failed — falling back to mock")
+        raise ToolError("Drug interaction source 'rxnorm' unavailable; no fallback data used.")
+    if settings.drug_interaction_source == "openfda":
+        result = _run_openfda_check(medications)
+        if result is not None:
+            return result
+        raise ToolError("Drug interaction source 'openfda' unavailable; no fallback data used.")
     return _run_mock_check(medications)

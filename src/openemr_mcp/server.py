@@ -13,6 +13,7 @@ Run via:
 import asyncio
 import json
 import logging
+import time
 from typing import Any
 
 import mcp.types as types
@@ -260,11 +261,15 @@ def _json(obj: Any) -> str:
 
 @server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
+    t0 = time.perf_counter()
     try:
         result = _dispatch(name, arguments)
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        _log.info("tool=%s status=ok latency_ms=%.1f", name, elapsed_ms)
         return [types.TextContent(type="text", text=_json(result))]
     except Exception as exc:
-        _log.error("Tool %s failed: %s", name, exc, exc_info=True)
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        _log.error("tool=%s status=error latency_ms=%.1f error=%s", name, elapsed_ms, exc, exc_info=True)
         error_payload = {"error": str(exc), "tool": name}
         return [types.TextContent(type="text", text=json.dumps(error_payload))]
 

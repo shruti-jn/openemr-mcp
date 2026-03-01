@@ -44,11 +44,11 @@ OPENEMR_DATA_SOURCE=mock openemr-mcp
 # Against a live OpenEMR FHIR API
 OPENEMR_DATA_SOURCE=api \
   OPENEMR_API_BASE_URL=https://your-openemr/apis/default \
-  OPENEMR_OAUTH_HOST=https://your-openemr \
+  OPENEMR_OAUTH_SITE=default \
   OPENEMR_OAUTH_CLIENT_ID=... \
   OPENEMR_OAUTH_CLIENT_SECRET=... \
-  OPENEMR_OAUTH_USER=admin \
-  OPENEMR_OAUTH_PASS=... \
+  OPENEMR_OAUTH_USERNAME=admin \
+  OPENEMR_OAUTH_PASSWORD=... \
   openemr-mcp
 ```
 
@@ -65,11 +65,11 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
       "env": {
         "OPENEMR_DATA_SOURCE": "api",
         "OPENEMR_API_BASE_URL": "https://your-openemr.example.com/apis/default",
-        "OPENEMR_OAUTH_HOST": "https://your-openemr.example.com",
+        "OPENEMR_OAUTH_SITE": "default",
         "OPENEMR_OAUTH_CLIENT_ID": "your_client_id",
         "OPENEMR_OAUTH_CLIENT_SECRET": "your_client_secret",
-        "OPENEMR_OAUTH_USER": "admin",
-        "OPENEMR_OAUTH_PASS": "your_password"
+        "OPENEMR_OAUTH_USERNAME": "admin",
+        "OPENEMR_OAUTH_PASSWORD": "your_password"
       }
     }
   }
@@ -107,7 +107,8 @@ For mock mode (demo / evaluation):
 | Value | Description |
 |---|---|
 | `mock` (default) | 10 built-in drug pairs — always works, no network |
-| `rxnorm` | NLM RxNorm Interaction API — free, no API key needed |
+| `openfda` | OpenFDA FAERS co-reporting heuristic — free, no API key required. Severity based on co-report volume (HIGH ≥ 50, MODERATE ≥ 5). Note: Co-reporting indicates correlation, not definitive causation. |
+| `rxnorm` | ⚠️ **DEPRECATED/UNAVAILABLE** — RxNorm interaction API endpoints retired (returns 404) |
 
 ### Symptom Checker (`SYMPTOM_SOURCE`)
 
@@ -137,19 +138,19 @@ OPENEMR_DATA_SOURCE=mock        # mock | db | api
 OPENEMR_DB_HOST=localhost
 OPENEMR_DB_PORT=3306
 OPENEMR_DB_USER=openemr
-OPENEMR_DB_PASS=openemr
+OPENEMR_DB_PASSWORD=openemr
 OPENEMR_DB_NAME=openemr
 
 # FHIR API (when OPENEMR_DATA_SOURCE=api)
 OPENEMR_API_BASE_URL=https://your-openemr/apis/default
-OPENEMR_OAUTH_HOST=https://your-openemr
+OPENEMR_OAUTH_SITE=default
 OPENEMR_OAUTH_CLIENT_ID=...
 OPENEMR_OAUTH_CLIENT_SECRET=...
-OPENEMR_OAUTH_USER=admin
-OPENEMR_OAUTH_PASS=...
+OPENEMR_OAUTH_USERNAME=admin
+OPENEMR_OAUTH_PASSWORD=...
 
 # Optional external APIs
-DRUG_INTERACTION_SOURCE=mock    # mock | rxnorm
+DRUG_INTERACTION_SOURCE=mock    # mock | openfda | rxnorm (deprecated)
 SYMPTOM_SOURCE=mock             # mock | infermedica
 INFERMEDICA_APP_ID=
 INFERMEDICA_APP_KEY=
