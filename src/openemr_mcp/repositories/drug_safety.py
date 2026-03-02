@@ -5,18 +5,18 @@ Storage: SQLite (no external dependencies; works in mock mode and production).
          Database file: ~/.openemr_mcp/drug_safety_flags.db (created automatically).
          Falls back to in-memory store when filesystem is read-only.
 """
-import uuid
-import sqlite3
+
 import logging
+import sqlite3
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
 
 from openemr_mcp.schemas import (
     DrugSafetyFlag,
     DrugSafetyFlagCreate,
-    DrugSafetyFlagUpdate,
     DrugSafetyFlagListResponse,
+    DrugSafetyFlagUpdate,
 )
 
 _log = logging.getLogger("openemr_mcp")
@@ -60,7 +60,7 @@ def _init_db(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
-_conn: Optional[sqlite3.Connection] = None
+_conn: sqlite3.Connection | None = None
 
 
 def _db() -> sqlite3.Connection:
@@ -117,9 +117,16 @@ def create_flag(payload: DrugSafetyFlagCreate) -> DrugSafetyFlag:
         VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
         """,
         (
-            flag_id, payload.patient_id, payload.drug_name, payload.flag_type,
-            payload.severity, payload.source, payload.description,
-            now, now, payload.created_by,
+            flag_id,
+            payload.patient_id,
+            payload.drug_name,
+            payload.flag_type,
+            payload.severity,
+            payload.source,
+            payload.description,
+            now,
+            now,
+            payload.created_by,
         ),
     )
     db.commit()
@@ -127,7 +134,7 @@ def create_flag(payload: DrugSafetyFlagCreate) -> DrugSafetyFlag:
     return _row_to_flag(row)
 
 
-def get_flags(patient_id: str, status_filter: Optional[str] = None) -> DrugSafetyFlagListResponse:
+def get_flags(patient_id: str, status_filter: str | None = None) -> DrugSafetyFlagListResponse:
     """Return all drug safety flags for a patient."""
     db = _db()
     if status_filter:
@@ -144,20 +151,20 @@ def get_flags(patient_id: str, status_filter: Optional[str] = None) -> DrugSafet
     active_count = sum(1 for f in flags if f.status == "active")
     high_severity_count = sum(1 for f in flags if f.severity == "HIGH" and f.status == "active")
     return DrugSafetyFlagListResponse(
-        patient_id=patient_id, flags=flags,
-        active_count=active_count, high_severity_count=high_severity_count,
+        patient_id=patient_id,
+        flags=flags,
+        active_count=active_count,
+        high_severity_count=high_severity_count,
     )
 
 
-def get_flag_by_id(flag_id: str) -> Optional[DrugSafetyFlag]:
+def get_flag_by_id(flag_id: str) -> DrugSafetyFlag | None:
     """Return a single flag by its ID, or None if not found."""
-    row = _db().execute(
-        "SELECT * FROM drug_safety_flags WHERE id = ?", (flag_id,)
-    ).fetchone()
+    row = _db().execute("SELECT * FROM drug_safety_flags WHERE id = ?", (flag_id,)).fetchone()
     return _row_to_flag(row) if row else None
 
 
-def update_flag(flag_id: str, payload: DrugSafetyFlagUpdate) -> Optional[DrugSafetyFlag]:
+def update_flag(flag_id: str, payload: DrugSafetyFlagUpdate) -> DrugSafetyFlag | None:
     """Update a flag's severity, description, or status."""
     existing = get_flag_by_id(flag_id)
     if existing is None:

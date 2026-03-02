@@ -1,12 +1,12 @@
 """Health Trajectory tool: orchestrates lab, vital, and questionnaire trends + drift alerts."""
+
 from datetime import datetime, timezone
-from typing import List, Optional
 
 from openemr_mcp.schemas import HealthTrajectoryResponse, MetricTrajectory
-from openemr_mcp.tools.lab_trends import run_lab_trends
-from openemr_mcp.tools.vital_trends import run_vital_trends
-from openemr_mcp.tools.questionnaire import run_questionnaire_trends
 from openemr_mcp.services.trajectory_alerts import compute_drift_alerts
+from openemr_mcp.tools.lab_trends import run_lab_trends
+from openemr_mcp.tools.questionnaire import run_questionnaire_trends
+from openemr_mcp.tools.vital_trends import run_vital_trends
 
 ALL_METRICS = ["a1c", "ldl", "egfr", "weight", "bp_systolic", "bp_diastolic", "phq9"]
 LAB_METRICS = ["a1c", "ldl", "egfr"]
@@ -17,12 +17,12 @@ QUESTIONNAIRE_METRICS = ["phq9"]
 def run_health_trajectory(
     patient_id: str,
     window_months: int = 24,
-    metrics: Optional[List[str]] = None,
+    metrics: list[str] | None = None,
 ) -> HealthTrajectoryResponse:
     """Aggregate all metric trajectories and compute drift alerts."""
     target = set(metrics or ALL_METRICS)
-    all_trajectories: List[MetricTrajectory] = []
-    data_gaps: List[str] = []
+    all_trajectories: list[MetricTrajectory] = []
+    data_gaps: list[str] = []
 
     lab_targets = [m for m in LAB_METRICS if m in target]
     if lab_targets:

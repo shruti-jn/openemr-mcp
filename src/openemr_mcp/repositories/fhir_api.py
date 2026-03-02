@@ -2,13 +2,18 @@
 FHIR R4 API repositories: patient, medication, appointment, provider, trajectory.
 Maps FHIR Bundle responses to domain models.
 """
-import re
-from typing import List, Any, Optional
 
-from openemr_mcp.schemas import (
-    PatientMatch, Medication, Appointment, Provider, TrajectoryPoint,
-)
+import re
+from typing import Any
+
 from openemr_mcp.repositories._errors import ToolError
+from openemr_mcp.schemas import (
+    Appointment,
+    Medication,
+    PatientMatch,
+    Provider,
+    TrajectoryPoint,
+)
 
 
 def _patient_id_from_fhir_id(resource_id: str) -> str:
@@ -23,7 +28,7 @@ def _patient_id_from_fhir_id(resource_id: str) -> str:
         return "p" + s
 
 
-def _full_name_from_fhir_name(name_list: Any) -> Optional[str]:
+def _full_name_from_fhir_name(name_list: Any) -> str | None:
     if not name_list or not isinstance(name_list, list):
         return None
     parts = []
@@ -41,7 +46,7 @@ def _full_name_from_fhir_name(name_list: Any) -> Optional[str]:
     return " ".join(parts).strip() or None
 
 
-def search_patients_api(query: str, http_client: Any) -> List[PatientMatch]:
+def search_patients_api(query: str, http_client: Any) -> list[PatientMatch]:
     q = (query or "").strip()
     if not q:
         return []
@@ -88,7 +93,7 @@ def search_patients_api(query: str, http_client: Any) -> List[PatientMatch]:
     return out
 
 
-def get_patient_by_pid_api(pid: int, http_client: Any) -> Optional[PatientMatch]:
+def get_patient_by_pid_api(pid: int, http_client: Any) -> PatientMatch | None:
     try:
         resource = http_client.get_fhir(f"Patient/{pid}")
     except ToolError:
@@ -115,7 +120,7 @@ def get_patient_by_pid_api(pid: int, http_client: Any) -> Optional[PatientMatch]
     return PatientMatch(patient_id=patient_id, full_name=full_name, dob=dob, sex=sex, city=city)
 
 
-def _fhir_patient_ref(patient_id_str: str) -> Optional[str]:
+def _fhir_patient_ref(patient_id_str: str) -> str | None:
     s = (patient_id_str or "").strip().lower()
     if not s:
         return None
@@ -129,7 +134,7 @@ def _fhir_patient_ref(patient_id_str: str) -> Optional[str]:
     return f"Patient/{raw}"
 
 
-def _dosage_from_fhir(dosage_instruction: Any) -> Optional[str]:
+def _dosage_from_fhir(dosage_instruction: Any) -> str | None:
     if not dosage_instruction or not isinstance(dosage_instruction, list):
         return None
     first = dosage_instruction[0]
@@ -154,7 +159,7 @@ def _dosage_from_fhir(dosage_instruction: Any) -> Optional[str]:
     return " ".join(parts).strip() or None
 
 
-def get_medications_api(patient_id_str: str, http_client: Any) -> List[Medication]:
+def get_medications_api(patient_id_str: str, http_client: Any) -> list[Medication]:
     patient_ref = _fhir_patient_ref(patient_id_str)
     if patient_ref is None:
         return []
@@ -194,7 +199,7 @@ def get_medications_api(patient_id_str: str, http_client: Any) -> List[Medicatio
     return out
 
 
-def get_appointments_api(patient_id_str: str, http_client: Any) -> List[Appointment]:
+def get_appointments_api(patient_id_str: str, http_client: Any) -> list[Appointment]:
     s = (patient_id_str or "").strip().lower()
     if not s:
         return []
@@ -231,12 +236,16 @@ def get_appointments_api(patient_id_str: str, http_client: Any) -> List[Appointm
             pl = str(item.get("provider_lname") or "").strip()
             name_parts = [n for n in [pf, pl] if n]
             provider_name = "Dr. " + " ".join(name_parts) if name_parts else None
-            out.append(Appointment(
-                appointment_id="a" + str(appt_id) if appt_id else "",
-                patient_id="p" + str(appt_pid),
-                start_time=start_time, reason=reason,
-                provider_id=provider_id, provider_name=provider_name,
-            ))
+            out.append(
+                Appointment(
+                    appointment_id="a" + str(appt_id) if appt_id else "",
+                    patient_id="p" + str(appt_pid),
+                    start_time=start_time,
+                    reason=reason,
+                    provider_id=provider_id,
+                    provider_name=provider_name,
+                )
+            )
         return out
     except (ValueError, TypeError):
         pass
@@ -272,7 +281,7 @@ def get_appointments_api(patient_id_str: str, http_client: Any) -> List[Appointm
         reason = reason or description or None
         provider_id = None
         provider_name = None
-        for participant in (resource.get("participant") or []):
+        for participant in resource.get("participant") or []:
             actor = participant.get("actor") if isinstance(participant, dict) else None
             if not isinstance(actor, dict):
                 continue
@@ -283,15 +292,20 @@ def get_appointments_api(patient_id_str: str, http_client: Any) -> List[Appointm
                 provider_id = "prov" + pid_ref
                 provider_name = ("Dr. " + display) if display and not display.startswith("Dr.") else display or None
                 break
-        out.append(Appointment(
-            appointment_id="a" + appt_id if appt_id else "",
-            patient_id="p" + raw, start_time=start_time,
-            reason=reason, provider_id=provider_id, provider_name=provider_name,
-        ))
+        out.append(
+            Appointment(
+                appointment_id="a" + appt_id if appt_id else "",
+                patient_id="p" + raw,
+                start_time=start_time,
+                reason=reason,
+                provider_id=provider_id,
+                provider_name=provider_name,
+            )
+        )
     return out
 
 
-def search_providers_api(specialty: Optional[str], location: Optional[str], http_client: Any) -> List[Provider]:
+def search_providers_api(specialty: str | None, location: str | None, http_client: Any) -> list[Provider]:
     params: dict = {}
     if specialty and specialty.strip():
         params["specialty"] = specialty.strip()
@@ -337,7 +351,7 @@ def search_providers_api(specialty: Optional[str], location: Optional[str], http
                         spec_val = str(text).strip()
                         break
         loc_val = ""
-        for ext in (resource.get("extension") or []):
+        for ext in resource.get("extension") or []:
             if not isinstance(ext, dict):
                 continue
             url = ext.get("url") or ""
@@ -352,7 +366,15 @@ def search_providers_api(specialty: Optional[str], location: Optional[str], http
             continue
         if loc_lower and loc_lower not in loc_val.lower():
             continue
-        out.append(Provider(provider_id=provider_id, full_name=full_name, specialty=spec_val, location=loc_val, accepting_new_patients=True))
+        out.append(
+            Provider(
+                provider_id=provider_id,
+                full_name=full_name,
+                specialty=spec_val,
+                location=loc_val,
+                accepting_new_patients=True,
+            )
+        )
     return out
 
 
@@ -360,23 +382,34 @@ def search_providers_api(specialty: Optional[str], location: Optional[str], http
 # LOINC / observation maps
 # ---------------------------------------------------------------------------
 _LOINC_METRIC_MAP: dict = {
-    "4548-4": ("a1c", "%"), "4549-2": ("a1c", "%"), "17856-6": ("a1c", "%"),
-    "13457-7": ("ldl", "mg/dL"), "18262-6": ("ldl", "mg/dL"), "2089-1": ("ldl", "mg/dL"),
-    "33914-3": ("egfr", "mL/min/1.73m²"), "62238-1": ("egfr", "mL/min/1.73m²"),
+    "4548-4": ("a1c", "%"),
+    "4549-2": ("a1c", "%"),
+    "17856-6": ("a1c", "%"),
+    "13457-7": ("ldl", "mg/dL"),
+    "18262-6": ("ldl", "mg/dL"),
+    "2089-1": ("ldl", "mg/dL"),
+    "33914-3": ("egfr", "mL/min/1.73m²"),
+    "62238-1": ("egfr", "mL/min/1.73m²"),
     "29463-7": ("weight", "kg"),
-    "8480-6": ("bp_systolic", "mmHg"), "8462-4": ("bp_diastolic", "mmHg"),
+    "8480-6": ("bp_systolic", "mmHg"),
+    "8462-4": ("bp_diastolic", "mmHg"),
     "85354-9": ("bp_panel", ""),
 }
 _LOCAL_CODE_ALIASES: dict = {
-    "HBA1C": ("a1c", "%"), "A1C": ("a1c", "%"),
-    "LDL": ("ldl", "mg/dL"), "LDL-C": ("ldl", "mg/dL"),
-    "EGFR": ("egfr", "mL/min/1.73m²"), "GFR": ("egfr", "mL/min/1.73m²"),
-    "WEIGHT": ("weight", "kg"), "WT": ("weight", "kg"),
-    "SYSTOLIC": ("bp_systolic", "mmHg"), "DIASTOLIC": ("bp_diastolic", "mmHg"),
+    "HBA1C": ("a1c", "%"),
+    "A1C": ("a1c", "%"),
+    "LDL": ("ldl", "mg/dL"),
+    "LDL-C": ("ldl", "mg/dL"),
+    "EGFR": ("egfr", "mL/min/1.73m²"),
+    "GFR": ("egfr", "mL/min/1.73m²"),
+    "WEIGHT": ("weight", "kg"),
+    "WT": ("weight", "kg"),
+    "SYSTOLIC": ("bp_systolic", "mmHg"),
+    "DIASTOLIC": ("bp_diastolic", "mmHg"),
 }
 
 
-def _resolve_metric_from_coding(coding_list: Any) -> Optional[tuple]:
+def _resolve_metric_from_coding(coding_list: Any) -> tuple | None:
     if not isinstance(coding_list, list):
         return None
     for coding in coding_list:
@@ -391,7 +424,7 @@ def _resolve_metric_from_coding(coding_list: Any) -> Optional[tuple]:
     return None
 
 
-def _extract_observation_value(resource: dict) -> Optional[tuple]:
+def _extract_observation_value(resource: dict) -> tuple | None:
     vq = resource.get("valueQuantity")
     if isinstance(vq, dict):
         val = vq.get("value")
@@ -425,9 +458,9 @@ def _effective_datetime(resource: dict) -> str:
     return ""
 
 
-def _parse_bp_panel(resource: dict, effective: str) -> List[TrajectoryPoint]:
-    points: List[TrajectoryPoint] = []
-    for comp in (resource.get("component") or []):
+def _parse_bp_panel(resource: dict, effective: str) -> list[TrajectoryPoint]:
+    points: list[TrajectoryPoint] = []
+    for comp in resource.get("component") or []:
         if not isinstance(comp, dict):
             continue
         cc = comp.get("code") or {}
@@ -443,17 +476,34 @@ def _parse_bp_panel(resource: dict, effective: str) -> List[TrajectoryPoint]:
             try:
                 val = float(vq["value"])
                 unit = str(vq.get("unit") or default_unit).strip()
-                points.append(TrajectoryPoint(metric=metric, value=val, unit=unit or default_unit, effective_at=effective, source="fhir_observation", code="85354-9"))
+                points.append(
+                    TrajectoryPoint(
+                        metric=metric,
+                        value=val,
+                        unit=unit or default_unit,
+                        effective_at=effective,
+                        source="fhir_observation",
+                        code="85354-9",
+                    )
+                )
             except (ValueError, TypeError):
                 pass
     return points
 
 
-def get_observation_trends_api(patient_id_str: str, category: str, from_date: str, code_filters: Optional[List[str]], http_client: Any) -> List[TrajectoryPoint]:
+def get_observation_trends_api(
+    patient_id_str: str, category: str, from_date: str, code_filters: list[str] | None, http_client: Any
+) -> list[TrajectoryPoint]:
     patient_ref = _fhir_patient_ref(patient_id_str)
     if patient_ref is None:
         return []
-    params: dict = {"patient": patient_ref, "category": category, "date": f"ge{from_date}", "_sort": "date", "_count": "200"}
+    params: dict = {
+        "patient": patient_ref,
+        "category": category,
+        "date": f"ge{from_date}",
+        "_sort": "date",
+        "_count": "200",
+    }
     if code_filters:
         params["code"] = ",".join(code_filters)
     try:
@@ -463,7 +513,7 @@ def get_observation_trends_api(patient_id_str: str, category: str, from_date: st
     entries = bundle.get("entry") if isinstance(bundle, dict) else None
     if not entries or not isinstance(entries, list):
         return []
-    points: List[TrajectoryPoint] = []
+    points: list[TrajectoryPoint] = []
     for entry in entries:
         resource = entry.get("resource") if isinstance(entry, dict) else None
         if not isinstance(resource, dict):
@@ -494,11 +544,22 @@ def get_observation_trends_api(patient_id_str: str, category: str, from_date: st
                 if isinstance(c, dict) and c.get("code"):
                     loinc_code = str(c["code"]).strip()
                     break
-        points.append(TrajectoryPoint(metric=metric, value=value, unit=unit or default_unit, effective_at=effective, source="fhir_observation", code=loinc_code))
+        points.append(
+            TrajectoryPoint(
+                metric=metric,
+                value=value,
+                unit=unit or default_unit,
+                effective_at=effective,
+                source="fhir_observation",
+                code=loinc_code,
+            )
+        )
     return points
 
 
-def get_questionnaire_trends_api(patient_id_str: str, from_date: str, questionnaire_name_filters: Optional[List[str]], http_client: Any) -> List[TrajectoryPoint]:
+def get_questionnaire_trends_api(
+    patient_id_str: str, from_date: str, questionnaire_name_filters: list[str] | None, http_client: Any
+) -> list[TrajectoryPoint]:
     patient_ref = _fhir_patient_ref(patient_id_str)
     if patient_ref is None:
         return []
@@ -511,7 +572,7 @@ def get_questionnaire_trends_api(patient_id_str: str, from_date: str, questionna
     if not entries or not isinstance(entries, list):
         return []
     name_filters_lower = [f.lower() for f in (questionnaire_name_filters or ["phq"])]
-    points: List[TrajectoryPoint] = []
+    points: list[TrajectoryPoint] = []
     for entry in entries:
         resource = entry.get("resource") if isinstance(entry, dict) else None
         if not isinstance(resource, dict):
@@ -530,11 +591,13 @@ def get_questionnaire_trends_api(patient_id_str: str, from_date: str, questionna
         score = _extract_questionnaire_total_score(resource)
         if score is None:
             continue
-        points.append(TrajectoryPoint(metric="phq9", value=score, unit="score", effective_at=authored, source="fhir_observation"))
+        points.append(
+            TrajectoryPoint(metric="phq9", value=score, unit="score", effective_at=authored, source="fhir_observation")
+        )
     return points
 
 
-def _extract_questionnaire_total_score(resource: dict) -> Optional[float]:
+def _extract_questionnaire_total_score(resource: dict) -> float | None:
     items = resource.get("item") or []
     total_score = None
     running_sum = 0.0

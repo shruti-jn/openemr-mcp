@@ -36,6 +36,8 @@ dependencies = [
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.4.0",
 ]
 
 [project.scripts]
@@ -51,3 +53,28 @@ packages = ["src/openemr_mcp"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--cov=openemr_mcp --cov-report=term-missing"
+
+[tool.coverage.run]
+source = ["openemr_mcp"]
+
+[tool.coverage.report]
+fail_under = 40
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.",
+    "if TYPE_CHECKING:",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+src = ["src", "tests", "evals"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+"evals/*" = ["E402"]

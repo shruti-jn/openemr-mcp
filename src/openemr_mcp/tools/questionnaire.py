@@ -1,9 +1,9 @@
 """Questionnaire trends tool: PHQ-9 score trajectories."""
-from datetime import datetime, timezone, timedelta
-from typing import List, Optional
 
-from openemr_mcp.schemas import TrajectoryPoint, MetricTrajectory
+from datetime import datetime, timedelta, timezone
+
 from openemr_mcp.data_source import get_effective_data_source, get_http_client
+from openemr_mcp.schemas import MetricTrajectory, TrajectoryPoint
 
 QUESTIONNAIRE_METRIC_META: dict = {
     "phq9": {"display_name": "PHQ-9 Depression Score", "unit": "score"},
@@ -13,13 +13,13 @@ TP = TrajectoryPoint
 
 _MOCK_QUESTIONNAIRE_DATA: dict = {
     "p001": [
-        TP(metric="phq9", value=4.0,  unit="score", effective_at="2024-03-01T00:00:00", source="mock"),
-        TP(metric="phq9", value=5.0,  unit="score", effective_at="2024-09-01T00:00:00", source="mock"),
-        TP(metric="phq9", value=6.0,  unit="score", effective_at="2025-03-01T00:00:00", source="mock"),
-        TP(metric="phq9", value=7.0,  unit="score", effective_at="2025-09-01T00:00:00", source="mock"),
+        TP(metric="phq9", value=4.0, unit="score", effective_at="2024-03-01T00:00:00", source="mock"),
+        TP(metric="phq9", value=5.0, unit="score", effective_at="2024-09-01T00:00:00", source="mock"),
+        TP(metric="phq9", value=6.0, unit="score", effective_at="2025-03-01T00:00:00", source="mock"),
+        TP(metric="phq9", value=7.0, unit="score", effective_at="2025-09-01T00:00:00", source="mock"),
     ],
     "p002": [
-        TP(metric="phq9", value=8.0,  unit="score", effective_at="2024-06-01T00:00:00", source="mock"),
+        TP(metric="phq9", value=8.0, unit="score", effective_at="2024-06-01T00:00:00", source="mock"),
         TP(metric="phq9", value=11.0, unit="score", effective_at="2024-12-01T00:00:00", source="mock"),
         TP(metric="phq9", value=14.0, unit="score", effective_at="2025-06-01T00:00:00", source="mock"),
     ],
@@ -36,7 +36,7 @@ def _from_date_str(window_months: int) -> str:
     return cutoff.strftime("%Y-%m-%d")
 
 
-def _build_trajectory(metric: str, points: List[TrajectoryPoint], window_months: int) -> MetricTrajectory:
+def _build_trajectory(metric: str, points: list[TrajectoryPoint], window_months: int) -> MetricTrajectory:
     meta = QUESTIONNAIRE_METRIC_META.get(metric, {"display_name": metric, "unit": "score"})
     sorted_pts = sorted(points, key=lambda p: p.effective_at)
     latest = sorted_pts[-1].value if sorted_pts else None
@@ -44,24 +44,34 @@ def _build_trajectory(metric: str, points: List[TrajectoryPoint], window_months:
     delta_abs = round(latest - previous, 4) if latest is not None and previous is not None else None
     delta_pct = round((delta_abs / previous) * 100, 2) if delta_abs is not None and previous and previous != 0 else None
     return MetricTrajectory(
-        metric=metric, display_name=meta["display_name"], unit=meta["unit"],
-        window_months=window_months, points=sorted_pts, latest_value=latest,
-        previous_value=previous, delta_abs=delta_abs, delta_pct=delta_pct,
+        metric=metric,
+        display_name=meta["display_name"],
+        unit=meta["unit"],
+        window_months=window_months,
+        points=sorted_pts,
+        latest_value=latest,
+        previous_value=previous,
+        delta_abs=delta_abs,
+        delta_pct=delta_pct,
     )
 
 
-def run_questionnaire_trends(patient_id: str, instrument: Optional[str] = "PHQ-9", window_months: int = 24) -> List[MetricTrajectory]:
+def run_questionnaire_trends(
+    patient_id: str, instrument: str | None = "PHQ-9", window_months: int = 24
+) -> list[MetricTrajectory]:
     """Return questionnaire score trajectories for a patient."""
     from_date = _from_date_str(window_months)
     ds = get_effective_data_source()
-    raw_points: List[TrajectoryPoint] = []
+    raw_points: list[TrajectoryPoint] = []
     name_filters = [instrument] if instrument else ["PHQ-9"]
     if ds == "api":
         from openemr_mcp.repositories.fhir_api import get_questionnaire_trends_api
+
         raw_points = get_questionnaire_trends_api(patient_id, from_date, name_filters, get_http_client())
     elif ds == "db":
-        from openemr_mcp.repositories.trajectory import get_questionnaire_trends_db
         from openemr_mcp.repositories.patient import get_openemr_connection
+        from openemr_mcp.repositories.trajectory import get_questionnaire_trends_db
+
         raw_points = get_questionnaire_trends_db(patient_id, from_date, name_filters, get_openemr_connection)
     else:
         pid = patient_id.lower()

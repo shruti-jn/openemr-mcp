@@ -1,46 +1,50 @@
 """All Pydantic schemas for openemr-mcp tools."""
-from typing import List, Literal, Optional
-from pydantic import BaseModel, Field, field_validator
 
+from typing import Literal
+
+from pydantic import BaseModel, Field, field_validator
 
 # ---------------------------------------------------------------------------
 # Patients
 # ---------------------------------------------------------------------------
 
+
 class PatientMatch(BaseModel):
     patient_id: str
     full_name: str
-    dob: Optional[str] = None
-    sex: Optional[str] = None
-    city: Optional[str] = None
+    dob: str | None = None
+    sex: str | None = None
+    city: str | None = None
 
 
 # ---------------------------------------------------------------------------
 # Appointments
 # ---------------------------------------------------------------------------
 
+
 class Appointment(BaseModel):
     appointment_id: str
     patient_id: str
     start_time: str
-    reason: Optional[str] = None
-    provider_id: Optional[str] = None
-    provider_name: Optional[str] = None
+    reason: str | None = None
+    provider_id: str | None = None
+    provider_name: str | None = None
 
 
 # ---------------------------------------------------------------------------
 # Medications & Drug Interactions
 # ---------------------------------------------------------------------------
 
+
 class Medication(BaseModel):
     drug: str
-    dosage: Optional[str] = None
+    dosage: str | None = None
     status: str  # "active" | "inactive"
 
 
 class MedicationListResponse(BaseModel):
     patient_id: str
-    medications: List[Medication]
+    medications: list[Medication]
 
 
 class DrugInteraction(BaseModel):
@@ -51,14 +55,15 @@ class DrugInteraction(BaseModel):
 
 
 class DrugInteractionResponse(BaseModel):
-    medications_checked: List[str]
-    interactions: List[DrugInteraction]
+    medications_checked: list[str]
+    interactions: list[DrugInteraction]
     has_critical: bool
 
 
 # ---------------------------------------------------------------------------
 # Providers
 # ---------------------------------------------------------------------------
+
 
 class Provider(BaseModel):
     provider_id: str
@@ -69,7 +74,7 @@ class Provider(BaseModel):
 
 
 class ProviderSearchResponse(BaseModel):
-    providers: List[Provider]
+    providers: list[Provider]
     specialty_queried: str = ""
     location_queried: str = ""
 
@@ -78,6 +83,7 @@ class ProviderSearchResponse(BaseModel):
 # Symptoms
 # ---------------------------------------------------------------------------
 
+
 class PossibleCondition(BaseModel):
     name: str
     likelihood: Literal["HIGH", "MODERATE", "LOW"]
@@ -85,8 +91,8 @@ class PossibleCondition(BaseModel):
 
 
 class SymptomLookupResponse(BaseModel):
-    symptoms_checked: List[str]
-    possible_conditions: List[PossibleCondition]
+    symptoms_checked: list[str]
+    possible_conditions: list[PossibleCondition]
     urgency_level: Literal["URGENT", "SEE_DOCTOR", "MONITOR"]
     disclaimer: str
 
@@ -94,6 +100,7 @@ class SymptomLookupResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Drug Safety Flags
 # ---------------------------------------------------------------------------
+
 
 class DrugSafetyFlag(BaseModel):
     id: str
@@ -120,14 +127,14 @@ class DrugSafetyFlagCreate(BaseModel):
 
 
 class DrugSafetyFlagUpdate(BaseModel):
-    severity: Optional[Literal["HIGH", "MODERATE", "LOW"]] = None
-    description: Optional[str] = None
-    status: Optional[Literal["active", "resolved", "under_review"]] = None
+    severity: Literal["HIGH", "MODERATE", "LOW"] | None = None
+    description: str | None = None
+    status: Literal["active", "resolved", "under_review"] | None = None
 
 
 class DrugSafetyFlagListResponse(BaseModel):
     patient_id: str
-    flags: List[DrugSafetyFlag]
+    flags: list[DrugSafetyFlag]
     active_count: int
     high_severity_count: int
 
@@ -136,9 +143,10 @@ class DrugSafetyFlagListResponse(BaseModel):
 # FDA Drug Safety
 # ---------------------------------------------------------------------------
 
+
 class FDAAdverseEvent(BaseModel):
     reaction: str
-    outcome: Optional[str] = None
+    outcome: str | None = None
     serious: bool = False
     report_count: int = 1
 
@@ -147,7 +155,7 @@ class FDAAdverseEventSummary(BaseModel):
     drug_name: str
     total_reports: int
     serious_reports: int
-    top_reactions: List[FDAAdverseEvent]
+    top_reactions: list[FDAAdverseEvent]
     data_source: str = "FDA FAERS (OpenFDA)"
     disclaimer: str = (
         "This data is from FDA's Adverse Event Reporting System (FAERS). "
@@ -158,13 +166,13 @@ class FDAAdverseEventSummary(BaseModel):
 
 class FDADrugLabelResult(BaseModel):
     drug_name: str
-    brand_names: List[str] = []
-    generic_name: Optional[str] = None
-    boxed_warning: Optional[str] = None
-    warnings: Optional[str] = None
-    contraindications: Optional[str] = None
-    indications_and_usage: Optional[str] = None
-    manufacturer: Optional[str] = None
+    brand_names: list[str] = []
+    generic_name: str | None = None
+    boxed_warning: str | None = None
+    warnings: str | None = None
+    contraindications: str | None = None
+    indications_and_usage: str | None = None
+    manufacturer: str | None = None
     data_source: str = "FDA Drug Label (OpenFDA)"
     has_boxed_warning: bool = False
 
@@ -172,6 +180,7 @@ class FDADrugLabelResult(BaseModel):
 # ---------------------------------------------------------------------------
 # Trajectory / Health Trends
 # ---------------------------------------------------------------------------
+
 
 class TrajectoryPoint(BaseModel):
     metric: str
@@ -185,7 +194,7 @@ class TrajectoryPoint(BaseModel):
         "questionnaire_response",
         "mock",
     ]
-    code: Optional[str] = None
+    code: str | None = None
 
 
 class MetricTrajectory(BaseModel):
@@ -193,11 +202,11 @@ class MetricTrajectory(BaseModel):
     display_name: str
     unit: str
     window_months: int
-    points: List[TrajectoryPoint]
-    latest_value: Optional[float] = None
-    previous_value: Optional[float] = None
-    delta_abs: Optional[float] = None
-    delta_pct: Optional[float] = None
+    points: list[TrajectoryPoint]
+    latest_value: float | None = None
+    previous_value: float | None = None
+    delta_abs: float | None = None
+    delta_pct: float | None = None
 
 
 class DriftAlert(BaseModel):
@@ -205,21 +214,22 @@ class DriftAlert(BaseModel):
     severity: Literal["info", "moderate", "high"]
     title: str
     rationale: str
-    evidence_points: List[TrajectoryPoint] = Field(default_factory=list)
+    evidence_points: list[TrajectoryPoint] = Field(default_factory=list)
 
 
 class HealthTrajectoryResponse(BaseModel):
     patient_id: str
     generated_at: str
     window_months: int
-    trajectories: List[MetricTrajectory]
-    alerts: List[DriftAlert]
-    data_gaps: List[str] = Field(default_factory=list)
+    trajectories: list[MetricTrajectory]
+    alerts: list[DriftAlert]
+    data_gaps: list[str] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
 # Visit Prep
 # ---------------------------------------------------------------------------
+
 
 class EvidenceItem(BaseModel):
     evidence_id: str = Field(..., min_length=1)
@@ -228,16 +238,16 @@ class EvidenceItem(BaseModel):
 
 
 class EvidenceStore(BaseModel):
-    items: List[EvidenceItem] = Field(default_factory=list)
+    items: list[EvidenceItem] = Field(default_factory=list)
 
 
 class Claim(BaseModel):
     text: str = Field(..., min_length=1)
-    evidence_ids: List[str] = Field(..., min_length=1)
+    evidence_ids: list[str] = Field(..., min_length=1)
 
     @field_validator("evidence_ids")
     @classmethod
-    def evidence_ids_non_empty_elements(cls, v: List[str]) -> List[str]:
+    def evidence_ids_non_empty_elements(cls, v: list[str]) -> list[str]:
         if not v:
             raise ValueError("evidence_ids must be non-empty")
         for eid in v:
@@ -249,12 +259,12 @@ class Claim(BaseModel):
 class Abstention(BaseModel):
     reason_code: str = Field(..., min_length=1)
     message: str = Field(..., min_length=1)
-    missing_evidence_keys: List[str] = Field(...)
+    missing_evidence_keys: list[str] = Field(...)
 
 
 class VisitPrepSection(BaseModel):
-    claims: List[Claim] = Field(default_factory=list)
-    abstentions: List[Abstention] = Field(default_factory=list)
+    claims: list[Claim] = Field(default_factory=list)
+    abstentions: list[Abstention] = Field(default_factory=list)
 
 
 class VisitPrepBrief(BaseModel):

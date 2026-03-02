@@ -1,6 +1,8 @@
 """Smoke tests — verify all 17 MCP tools return expected types in mock mode."""
+
 import pytest
 
+from openemr_mcp.repositories._errors import ToolError
 from openemr_mcp.schemas import (
     DrugInteractionResponse,
     DrugSafetyFlag,
@@ -13,15 +15,15 @@ from openemr_mcp.schemas import (
     SymptomLookupResponse,
     VisitPrepResponse,
 )
-from openemr_mcp.repositories._errors import ToolError
-
 
 # ---------------------------------------------------------------------------
 # Patient
 # ---------------------------------------------------------------------------
 
+
 def test_patient_search_returns_matches():
     from openemr_mcp.tools.patient import run_patient_search
+
     results = run_patient_search("John")
     assert isinstance(results, list)
     assert len(results) >= 1
@@ -30,6 +32,7 @@ def test_patient_search_returns_matches():
 
 def test_patient_search_no_results():
     from openemr_mcp.tools.patient import run_patient_search
+
     results = run_patient_search("zzznomatchxxx")
     assert isinstance(results, list)
     assert len(results) == 0
@@ -39,9 +42,11 @@ def test_patient_search_no_results():
 # Appointments
 # ---------------------------------------------------------------------------
 
+
 def test_appointment_list_known_patient():
-    from openemr_mcp.tools.appointments import run_appointment_list
     from openemr_mcp.schemas import Appointment
+    from openemr_mcp.tools.appointments import run_appointment_list
+
     results = run_appointment_list("p001")
     assert isinstance(results, list)
     if results:
@@ -50,6 +55,7 @@ def test_appointment_list_known_patient():
 
 def test_appointment_list_unknown_patient():
     from openemr_mcp.tools.appointments import run_appointment_list
+
     results = run_appointment_list("p999")
     assert isinstance(results, list)
     assert len(results) == 0
@@ -59,8 +65,10 @@ def test_appointment_list_unknown_patient():
 # Medications
 # ---------------------------------------------------------------------------
 
+
 def test_medication_list_known_patient():
     from openemr_mcp.tools.medications import run_medication_list
+
     result = run_medication_list("p001")
     assert isinstance(result, MedicationListResponse)
     assert len(result.medications) >= 1
@@ -69,6 +77,7 @@ def test_medication_list_known_patient():
 
 def test_medication_list_unknown_patient():
     from openemr_mcp.tools.medications import run_medication_list
+
     result = run_medication_list("p999")
     assert isinstance(result, MedicationListResponse)
     assert result.medications == []
@@ -78,8 +87,10 @@ def test_medication_list_unknown_patient():
 # Drug Interactions
 # ---------------------------------------------------------------------------
 
+
 def test_drug_interaction_check_known_pair():
     from openemr_mcp.tools.drug_interactions import run_drug_interaction_check
+
     result = run_drug_interaction_check(["warfarin", "aspirin"])
     assert isinstance(result, DrugInteractionResponse)
     assert len(result.interactions) >= 1
@@ -87,6 +98,7 @@ def test_drug_interaction_check_known_pair():
 
 def test_drug_interaction_check_no_interaction():
     from openemr_mcp.tools.drug_interactions import run_drug_interaction_check
+
     result = run_drug_interaction_check(["vitamin_c"])
     assert isinstance(result, DrugInteractionResponse)
     assert result.has_critical is False
@@ -94,6 +106,7 @@ def test_drug_interaction_check_no_interaction():
 
 def test_drug_interaction_check_empty():
     from openemr_mcp.tools.drug_interactions import run_drug_interaction_check
+
     result = run_drug_interaction_check([])
     assert isinstance(result, DrugInteractionResponse)
     assert result.interactions == []
@@ -102,6 +115,7 @@ def test_drug_interaction_check_empty():
 def test_drug_interaction_openfda(monkeypatch):
     """OpenFDA provider returns interactions using FAERS co-reporting."""
     import types
+
     from openemr_mcp.tools import drug_interactions
 
     monkeypatch.setattr(drug_interactions.settings, "drug_interaction_source", "openfda")
@@ -117,7 +131,9 @@ def test_drug_interaction_openfda(monkeypatch):
         resp = types.SimpleNamespace()
         resp.status_code = 200
         resp.json = lambda: sample
+
         def raise_for_status(): ...
+
         resp.raise_for_status = raise_for_status
         return resp
 
@@ -132,19 +148,20 @@ def test_drug_interaction_openfda(monkeypatch):
 def test_drug_interaction_openfda_strict_no_fallback(monkeypatch):
     """OpenFDA failure raises ToolError without fallback to mock."""
     import pytest
-    from openemr_mcp.tools import drug_interactions
+
     from openemr_mcp.repositories._errors import ToolError
-    
+    from openemr_mcp.tools import drug_interactions
+
     monkeypatch.setattr(drug_interactions.settings, "drug_interaction_source", "openfda")
-    
+
     def fake_get_failure(url, params=None, timeout=None):
         raise Exception("API unavailable")
-    
+
     monkeypatch.setattr(drug_interactions.httpx, "get", fake_get_failure)
-    
+
     with pytest.raises(ToolError) as exc_info:
         drug_interactions.run_drug_interaction_check(["warfarin", "aspirin"])
-    
+
     error_msg = str(exc_info.value).lower()
     assert "openfda" in error_msg
     assert "no fallback data used" in error_msg
@@ -153,19 +170,20 @@ def test_drug_interaction_openfda_strict_no_fallback(monkeypatch):
 def test_drug_interaction_rxnorm_strict_no_fallback(monkeypatch):
     """RxNorm failure raises ToolError without fallback to mock."""
     import pytest
-    from openemr_mcp.tools import drug_interactions
+
     from openemr_mcp.repositories._errors import ToolError
-    
+    from openemr_mcp.tools import drug_interactions
+
     monkeypatch.setattr(drug_interactions.settings, "drug_interaction_source", "rxnorm")
-    
+
     def fake_get_failure(url, params=None, timeout=None):
         raise Exception("404 Not Found")
-    
+
     monkeypatch.setattr(drug_interactions.httpx, "get", fake_get_failure)
-    
+
     with pytest.raises(ToolError) as exc_info:
         drug_interactions.run_drug_interaction_check(["warfarin", "aspirin"])
-    
+
     error_msg = str(exc_info.value).lower()
     assert "rxnorm" in error_msg
     assert "no fallback data used" in error_msg
@@ -175,8 +193,10 @@ def test_drug_interaction_rxnorm_strict_no_fallback(monkeypatch):
 # Providers
 # ---------------------------------------------------------------------------
 
+
 def test_provider_search_by_specialty():
     from openemr_mcp.tools.providers import run_provider_search
+
     result = run_provider_search(specialty="Cardiology")
     assert isinstance(result, ProviderSearchResponse)
     assert len(result.providers) >= 1
@@ -185,6 +205,7 @@ def test_provider_search_by_specialty():
 
 def test_provider_search_no_filters():
     from openemr_mcp.tools.providers import run_provider_search
+
     result = run_provider_search()
     assert isinstance(result, ProviderSearchResponse)
     assert len(result.providers) >= 5
@@ -194,8 +215,10 @@ def test_provider_search_no_filters():
 # FDA
 # ---------------------------------------------------------------------------
 
+
 def test_fda_adverse_events_known_drug():
     from openemr_mcp.tools.fda import run_fda_adverse_events
+
     result = run_fda_adverse_events("metformin")
     assert isinstance(result, FDAAdverseEventSummary)
     assert result.drug_name
@@ -204,6 +227,7 @@ def test_fda_adverse_events_known_drug():
 
 def test_fda_drug_label_known_drug():
     from openemr_mcp.tools.fda import run_fda_drug_label
+
     result = run_fda_drug_label("metformin")
     assert isinstance(result, FDADrugLabelResult)
     assert result.drug_name
@@ -213,8 +237,10 @@ def test_fda_drug_label_known_drug():
 # Symptoms
 # ---------------------------------------------------------------------------
 
+
 def test_symptom_lookup_chest_pain():
     from openemr_mcp.tools.symptoms import run_symptom_lookup
+
     result = run_symptom_lookup(["chest pain", "shortness of breath"])
     assert isinstance(result, SymptomLookupResponse)
     assert len(result.possible_conditions) >= 1
@@ -224,6 +250,7 @@ def test_symptom_lookup_chest_pain():
 
 def test_symptom_lookup_no_match():
     from openemr_mcp.tools.symptoms import run_symptom_lookup
+
     result = run_symptom_lookup(["blurry_nonexistent_symptom_xyz"])
     assert isinstance(result, SymptomLookupResponse)
     assert result.urgency_level == "MONITOR"
@@ -232,6 +259,7 @@ def test_symptom_lookup_no_match():
 # ---------------------------------------------------------------------------
 # Drug Safety Flags (CRUD)
 # ---------------------------------------------------------------------------
+
 
 def test_drug_safety_flag_crud(tmp_path, monkeypatch):
     """Create → list → update → delete a drug safety flag."""
@@ -244,9 +272,9 @@ def test_drug_safety_flag_crud(tmp_path, monkeypatch):
 
     from openemr_mcp.tools.drug_safety import (
         run_create_drug_safety_flag,
+        run_delete_drug_safety_flag,
         run_get_drug_safety_flags,
         run_update_drug_safety_flag,
-        run_delete_drug_safety_flag,
     )
 
     # Create
@@ -283,8 +311,10 @@ def test_drug_safety_flag_crud(tmp_path, monkeypatch):
 # Lab Trends
 # ---------------------------------------------------------------------------
 
+
 def test_lab_trends_all_metrics():
     from openemr_mcp.tools.lab_trends import run_lab_trends
+
     result = run_lab_trends("p001")
     assert isinstance(result, list)
     assert len(result) >= 1
@@ -293,6 +323,7 @@ def test_lab_trends_all_metrics():
 
 def test_lab_trends_single_metric():
     from openemr_mcp.tools.lab_trends import run_lab_trends
+
     result = run_lab_trends("p001", metrics=["a1c"])
     assert isinstance(result, list)
     names = [t.metric for t in result]
@@ -303,8 +334,10 @@ def test_lab_trends_single_metric():
 # Vital Trends
 # ---------------------------------------------------------------------------
 
+
 def test_vital_trends_all_metrics():
     from openemr_mcp.tools.vital_trends import run_vital_trends
+
     result = run_vital_trends("p001")
     assert isinstance(result, list)
     assert len(result) >= 1
@@ -312,6 +345,7 @@ def test_vital_trends_all_metrics():
 
 def test_vital_trends_weight_only():
     from openemr_mcp.tools.vital_trends import run_vital_trends
+
     result = run_vital_trends("p001", metrics=["weight"])
     assert isinstance(result, list)
     assert all(t.metric == "weight" for t in result)
@@ -321,8 +355,10 @@ def test_vital_trends_weight_only():
 # Questionnaire Trends
 # ---------------------------------------------------------------------------
 
+
 def test_questionnaire_trends_phq9():
     from openemr_mcp.tools.questionnaire import run_questionnaire_trends
+
     result = run_questionnaire_trends("p001")
     assert isinstance(result, list)
     if result:
@@ -333,8 +369,10 @@ def test_questionnaire_trends_phq9():
 # Health Trajectory
 # ---------------------------------------------------------------------------
 
+
 def test_health_trajectory():
     from openemr_mcp.tools.trajectory import run_health_trajectory
+
     result = run_health_trajectory("p001")
     assert isinstance(result, HealthTrajectoryResponse)
     assert result.patient_id == "p001"
@@ -346,8 +384,10 @@ def test_health_trajectory():
 # Visit Prep
 # ---------------------------------------------------------------------------
 
+
 def test_visit_prep_returns_brief():
     from openemr_mcp.tools.visit_prep import run_visit_prep
+
     result = run_visit_prep("p001")
     assert isinstance(result, VisitPrepResponse)
     assert result.metadata.patient_id == "p001"
@@ -360,6 +400,7 @@ def test_visit_prep_returns_brief():
 
 def test_visit_prep_unknown_patient():
     from openemr_mcp.tools.visit_prep import run_visit_prep
+
     result = run_visit_prep("p999")
     assert isinstance(result, VisitPrepResponse)
     # Should return abstentions for missing data, not crash
@@ -370,13 +411,14 @@ def test_visit_prep_unknown_patient():
 # Auth interface regression guard
 # ---------------------------------------------------------------------------
 
+
 def test_oauth2_token_manager_exposes_get_valid_access_token():
     """Regression: data_source._get_headers calls get_valid_access_token, not get_token.
     If the method is renamed again this test will catch the mismatch before it ships."""
     from openemr_mcp.auth import OAuth2TokenManager
+
     assert callable(getattr(OAuth2TokenManager, "get_valid_access_token", None)), (
-        "OAuth2TokenManager must expose get_valid_access_token — "
-        "data_source._get_headers depends on it"
+        "OAuth2TokenManager must expose get_valid_access_token — data_source._get_headers depends on it"
     )
     assert not hasattr(OAuth2TokenManager, "get_token"), (
         "OAuth2TokenManager must not expose 'get_token' — use get_valid_access_token"
@@ -387,22 +429,22 @@ def test_get_http_client_method_name_contract():
     """Verify _OpenEMRClient._get_headers calls get_valid_access_token.
     Inspects source to catch future renames without needing a live OpenEMR."""
     import inspect
+
     from openemr_mcp import data_source
+
     src = inspect.getsource(data_source)
-    assert "get_valid_access_token" in src, (
-        "data_source must call get_valid_access_token, not get_token"
-    )
-    assert "get_token()" not in src, (
-        "data_source must not call the non-existent get_token() method"
-    )
+    assert "get_valid_access_token" in src, "data_source must call get_valid_access_token, not get_token"
+    assert "get_token()" not in src, "data_source must not call the non-existent get_token() method"
 
 
 # ---------------------------------------------------------------------------
 # No-fabrication guards for live external sources
 # ---------------------------------------------------------------------------
 
+
 def test_rxnorm_source_does_not_fallback_to_mock(monkeypatch):
     from openemr_mcp.tools import drug_interactions
+
     monkeypatch.setattr(drug_interactions.settings, "drug_interaction_source", "rxnorm")
     monkeypatch.setattr(drug_interactions, "_run_rxnorm_check", lambda meds: None)
     with pytest.raises(ToolError, match="no fallback data used"):
@@ -411,6 +453,7 @@ def test_rxnorm_source_does_not_fallback_to_mock(monkeypatch):
 
 def test_infermedica_source_does_not_fallback_to_mock(monkeypatch):
     from openemr_mcp.tools import symptoms
+
     monkeypatch.setattr(symptoms.settings, "symptom_source", "infermedica")
     monkeypatch.setattr(symptoms, "_run_infermedica_check", lambda symptoms_list: None)
     with pytest.raises(ToolError, match="no fallback data used"):
@@ -419,6 +462,7 @@ def test_infermedica_source_does_not_fallback_to_mock(monkeypatch):
 
 def test_openfda_live_failure_does_not_fallback_to_mock(monkeypatch):
     from openemr_mcp.services import openfda_client
+
     monkeypatch.setattr(openfda_client.settings, "openfda_source", "live")
 
     def _raise_connect_error(*args, **kwargs):

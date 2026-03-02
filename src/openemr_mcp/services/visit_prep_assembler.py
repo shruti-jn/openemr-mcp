@@ -1,5 +1,4 @@
 """Assembler: build VisitPrepBrief from collectors + rules. Verifier failure => deterministic fallback."""
-from typing import List, Tuple
 
 from openemr_mcp.schemas import (
     Abstention,
@@ -15,7 +14,7 @@ def _empty_section() -> VisitPrepSection:
     return VisitPrepSection(claims=[], abstentions=[])
 
 
-def fallback_brief(invalid_evidence_ids: List[str]) -> VisitPrepBrief:
+def fallback_brief(invalid_evidence_ids: list[str]) -> VisitPrepBrief:
     """
     Deterministic fallback brief when verifier fails. No claims; abstentions section explains failure.
     """
@@ -50,7 +49,7 @@ def assemble_brief(evidence_store: EvidenceStore) -> VisitPrepBrief:
 
 def assemble_and_verify(
     evidence_store: EvidenceStore,
-) -> Tuple[VisitPrepBrief, EvidenceStore, bool]:
+) -> tuple[VisitPrepBrief, EvidenceStore, bool]:
     """
     Assemble brief from store, verify all claims have evidence in store.
     If verification fails, return deterministic fallback brief and verified=False.

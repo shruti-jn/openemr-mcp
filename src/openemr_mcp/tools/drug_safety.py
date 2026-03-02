@@ -1,16 +1,22 @@
 """Drug Safety Flag tools — CRUD operations for patient-specific drug safety notes."""
+
 import logging
 import unicodedata
-from typing import Optional
 
+from openemr_mcp.repositories._errors import ToolError
 from openemr_mcp.repositories.drug_safety import (
-    create_flag, get_flags, get_flag_by_id, update_flag, delete_flag,
+    create_flag,
+    delete_flag,
+    get_flags,
+    update_flag,
 )
 from openemr_mcp.schemas import (
-    DrugSafetyFlag, DrugSafetyFlagCreate, DrugSafetyFlagUpdate, DrugSafetyFlagListResponse,
+    DrugSafetyFlag,
+    DrugSafetyFlagCreate,
+    DrugSafetyFlagListResponse,
+    DrugSafetyFlagUpdate,
 )
 from openemr_mcp.services.safety import sanitize_drug_name
-from openemr_mcp.repositories._errors import ToolError
 
 _log = logging.getLogger("openemr_mcp")
 _MAX_DESCRIPTION_LEN = 1000
@@ -24,9 +30,13 @@ def _sanitize_description(text: str) -> str:
 
 
 def run_create_drug_safety_flag(
-    patient_id: str, drug_name: str, description: str,
-    flag_type: str = "adverse_event", severity: str = "MODERATE",
-    source: str = "AGENT", created_by: str = "agent",
+    patient_id: str,
+    drug_name: str,
+    description: str,
+    flag_type: str = "adverse_event",
+    severity: str = "MODERATE",
+    source: str = "AGENT",
+    created_by: str = "agent",
 ) -> DrugSafetyFlag:
     try:
         safe_drug_name = sanitize_drug_name(drug_name)
@@ -35,20 +45,27 @@ def run_create_drug_safety_flag(
         raise ToolError(f"Invalid drug name: {exc}") from exc
     safe_description = _sanitize_description(description)
     payload = DrugSafetyFlagCreate(
-        patient_id=patient_id, drug_name=safe_drug_name, description=safe_description,
-        flag_type=flag_type, severity=severity, source=source, created_by=created_by,
+        patient_id=patient_id,
+        drug_name=safe_drug_name,
+        description=safe_description,
+        flag_type=flag_type,
+        severity=severity,
+        source=source,
+        created_by=created_by,
     )
     return create_flag(payload)
 
 
-def run_get_drug_safety_flags(patient_id: str, status_filter: Optional[str] = None) -> DrugSafetyFlagListResponse:
+def run_get_drug_safety_flags(patient_id: str, status_filter: str | None = None) -> DrugSafetyFlagListResponse:
     return get_flags(patient_id, status_filter=status_filter)
 
 
 def run_update_drug_safety_flag(
-    flag_id: str, severity: Optional[str] = None,
-    description: Optional[str] = None, status: Optional[str] = None,
-) -> Optional[DrugSafetyFlag]:
+    flag_id: str,
+    severity: str | None = None,
+    description: str | None = None,
+    status: str | None = None,
+) -> DrugSafetyFlag | None:
     safe_description = _sanitize_description(description) if description is not None else None
     payload = DrugSafetyFlagUpdate(severity=severity, description=safe_description, status=status)
     return update_flag(flag_id, payload)

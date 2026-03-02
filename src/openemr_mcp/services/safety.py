@@ -1,4 +1,5 @@
 """Drug name and input sanitization for openemr-mcp."""
+
 import unicodedata
 
 
@@ -15,10 +16,25 @@ def sanitize_drug_name(drug_name: str) -> str:
     cleaned = "".join(c for c in cleaned if unicodedata.category(c)[0] != "C" or c in ("\t", "\n"))
     lower = cleaned.lower()
     _injection_patterns = [
-        "ignore", "disregard", "forget your", "override", "jailbreak", "dan mode",
-        "act as", "you are now", "developer mode", "no restriction", "system prompt",
-        "repeat the text above", "ignorez", "<|im_start|>", "<|im_end|>", "<|system|>",
-        "```system", "```python", "```bash",
+        "ignore",
+        "disregard",
+        "forget your",
+        "override",
+        "jailbreak",
+        "dan mode",
+        "act as",
+        "you are now",
+        "developer mode",
+        "no restriction",
+        "system prompt",
+        "repeat the text above",
+        "ignorez",
+        "<|im_start|>",
+        "<|im_end|>",
+        "<|system|>",
+        "```system",
+        "```python",
+        "```bash",
     ]
     for pattern in _injection_patterns:
         if pattern in lower:

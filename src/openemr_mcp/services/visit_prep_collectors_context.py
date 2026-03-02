@@ -2,8 +2,8 @@
 Visit prep context collectors: appointments, demographics, care-team.
 Normalizes into EvidenceStore with source + stable evidence_id. Facts only, no inference.
 """
+
 import hashlib
-from typing import Any, List, Optional
 
 from openemr_mcp.schemas import EvidenceItem, EvidenceStore
 
@@ -24,14 +24,14 @@ def _iso_ts_from_appointment(apt: dict) -> str:
     return "1970-01-01T00:00:00Z"
 
 
-def collect_appointments(appointments: List[dict]) -> EvidenceStore:
+def collect_appointments(appointments: list[dict]) -> EvidenceStore:
     """
     Collect upcoming/missed appointments with status and dates.
     Each appointment becomes one EvidenceItem. Ordered by start_time descending.
     """
     if not appointments:
         return EvidenceStore(items=[])
-    items: List[EvidenceItem] = []
+    items: list[EvidenceItem] = []
     for apt in appointments:
         apt_id = str(apt.get("appointment_id") or "unknown").strip() or "unknown"
         ts = _iso_ts_from_appointment(apt)
@@ -43,14 +43,12 @@ def collect_appointments(appointments: List[dict]) -> EvidenceStore:
         canonical = f"appointments|{apt_id}|summary|{ts}|{summary}"
         h = _hash8(canonical)
         evidence_id = f"ev::appointments::{apt_id}::summary::{ts}::{h}"
-        items.append(
-            EvidenceItem(evidence_id=evidence_id, source="appointments", summary=summary)
-        )
+        items.append(EvidenceItem(evidence_id=evidence_id, source="appointments", summary=summary))
     items.sort(key=lambda i: (i.evidence_id.split("::")[4], i.evidence_id), reverse=True)
     return EvidenceStore(items=items)
 
 
-def collect_demographics(demographics: Optional[dict]) -> EvidenceStore:
+def collect_demographics(demographics: dict | None) -> EvidenceStore:
     """
     Collect demographics fields needed for risk stratification context.
     Only present (non-null, non-empty) fields are emitted. No inference.
@@ -58,7 +56,7 @@ def collect_demographics(demographics: Optional[dict]) -> EvidenceStore:
     if not demographics or not isinstance(demographics, dict):
         return EvidenceStore(items=[])
     fields_used = ("dob", "sex", "race", "ethnicity", "language", "zip", "patient_id")
-    items: List[EvidenceItem] = []
+    items: list[EvidenceItem] = []
     for field in fields_used:
         val = demographics.get(field)
         if val is None or (isinstance(val, str) and not val.strip()):
@@ -70,21 +68,19 @@ def collect_demographics(demographics: Optional[dict]) -> EvidenceStore:
         canonical = f"demographics|{entity}|{field}|{ts}|{summary}"
         h = _hash8(canonical)
         evidence_id = f"ev::demographics::{entity}::{field}::{ts}::{h}"
-        items.append(
-            EvidenceItem(evidence_id=evidence_id, source="demographics", summary=summary)
-        )
+        items.append(EvidenceItem(evidence_id=evidence_id, source="demographics", summary=summary))
     items.sort(key=lambda i: i.evidence_id)
     return EvidenceStore(items=items)
 
 
-def collect_care_team(care_team: List[dict]) -> EvidenceStore:
+def collect_care_team(care_team: list[dict]) -> EvidenceStore:
     """
     Collect care-team members and ownership metadata.
     Missing is_owner is reported as unknown in summary.
     """
     if not care_team:
         return EvidenceStore(items=[])
-    items: List[EvidenceItem] = []
+    items: list[EvidenceItem] = []
     for i, member in enumerate(care_team):
         member_id = str(member.get("member_id") or f"member_{i}").strip() or f"member_{i}"
         role = str(member.get("role") or "").strip() or "unknown"
@@ -103,9 +99,7 @@ def collect_care_team(care_team: List[dict]) -> EvidenceStore:
         canonical = f"care_team|{member_id}|member|{ts}|{summary}"
         h = _hash8(canonical)
         evidence_id = f"ev::care_team::{member_id}::member::{ts}::{h}"
-        items.append(
-            EvidenceItem(evidence_id=evidence_id, source="care_team", summary=summary)
-        )
+        items.append(EvidenceItem(evidence_id=evidence_id, source="care_team", summary=summary))
     items.sort(key=lambda i: i.evidence_id)
     return EvidenceStore(items=items)
 
@@ -128,7 +122,7 @@ def collect_context_evidence(payload: dict) -> EvidenceStore:
     store_dem = collect_demographics(demographics)
     store_ct = collect_care_team(care_team)
 
-    all_items: List[EvidenceItem] = []
+    all_items: list[EvidenceItem] = []
     all_items.extend(store_app.items)
     all_items.extend(store_dem.items)
     all_items.extend(store_ct.items)

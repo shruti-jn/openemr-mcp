@@ -1,8 +1,10 @@
 """OpenEMR patient_data access via MySQL. Raises ToolError on connection failure."""
-from typing import List, Callable, Any, Optional
 
-from openemr_mcp.schemas import PatientMatch
+from collections.abc import Callable
+from typing import Any
+
 from openemr_mcp.repositories._errors import ToolError
+from openemr_mcp.schemas import PatientMatch
 
 DB_CONNECTION_ERROR_MSG = "OpenEMR database connection failed"
 
@@ -10,8 +12,10 @@ DB_CONNECTION_ERROR_MSG = "OpenEMR database connection failed"
 def get_openemr_connection():
     """Return a MySQL connection from settings. Raises ToolError on failure."""
     from openemr_mcp.config import settings
+
     try:
         import pymysql
+
         return pymysql.connect(
             host=settings.openemr_db_host,
             port=settings.openemr_db_port,
@@ -23,7 +27,7 @@ def get_openemr_connection():
         raise ToolError(DB_CONNECTION_ERROR_MSG)
 
 
-def search_patients(query: str, get_connection: Callable[[], Any]) -> List[PatientMatch]:
+def search_patients(query: str, get_connection: Callable[[], Any]) -> list[PatientMatch]:
     """Search patient_data by name with parameterized LIKE."""
     q = (query or "").strip()
     if not q:
@@ -56,10 +60,15 @@ def search_patients(query: str, get_connection: Callable[[], Any]) -> List[Patie
             sex_val = (row[4] or "").strip() or None
             city_val = (row[5] or "").strip() or None
             full_name = " ".join([fname_val, lname_val]).strip() or "Unknown"
-            out.append(PatientMatch(
-                patient_id="p" + str(pid_val),
-                full_name=full_name, dob=dob_val, sex=sex_val, city=city_val,
-            ))
+            out.append(
+                PatientMatch(
+                    patient_id="p" + str(pid_val),
+                    full_name=full_name,
+                    dob=dob_val,
+                    sex=sex_val,
+                    city=city_val,
+                )
+            )
         return out
     except ToolError:
         raise
@@ -72,7 +81,7 @@ def search_patients(query: str, get_connection: Callable[[], Any]) -> List[Patie
             pass
 
 
-def get_patient_by_id(pid: int, get_connection: Callable[[], Any]) -> Optional[PatientMatch]:
+def get_patient_by_id(pid: int, get_connection: Callable[[], Any]) -> PatientMatch | None:
     """Fetch a single patient by OpenEMR integer pid. Returns None if not found."""
     try:
         conn = get_connection()

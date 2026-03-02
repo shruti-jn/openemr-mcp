@@ -1,5 +1,4 @@
 """Pytest configuration — force mock mode for all tests."""
-import os
 
 import pytest
 

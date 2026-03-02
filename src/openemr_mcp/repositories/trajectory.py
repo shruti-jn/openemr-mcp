@@ -1,6 +1,7 @@
 """DB-mode repository for health trajectory data."""
-from typing import List, Optional, Any
+
 from datetime import datetime
+from typing import Any
 
 from openemr_mcp.schemas import TrajectoryPoint
 
@@ -11,7 +12,7 @@ LAB_CODE_ALIASES: dict = {
 }
 
 
-def _normalize_pid(patient_id_str: str) -> Optional[int]:
+def _normalize_pid(patient_id_str: str) -> int | None:
     s = (patient_id_str or "").strip().lower()
     if s.startswith("p"):
         s = s[1:]
@@ -29,7 +30,7 @@ def _to_iso(dt_val: Any) -> str:
     return str(dt_val)
 
 
-def _code_to_metric(code_upper: str) -> Optional[str]:
+def _code_to_metric(code_upper: str) -> str | None:
     for metric, aliases in LAB_CODE_ALIASES.items():
         if code_upper in {a.upper() for a in aliases}:
             return metric
@@ -38,13 +39,18 @@ def _code_to_metric(code_upper: str) -> Optional[str]:
 
 def _default_unit(metric: str) -> str:
     defaults = {
-        "a1c": "%", "ldl": "mg/dL", "egfr": "mL/min/1.73m²",
-        "weight": "kg", "bp_systolic": "mmHg", "bp_diastolic": "mmHg", "phq9": "score",
+        "a1c": "%",
+        "ldl": "mg/dL",
+        "egfr": "mL/min/1.73m²",
+        "weight": "kg",
+        "bp_systolic": "mmHg",
+        "bp_diastolic": "mmHg",
+        "phq9": "score",
     }
     return defaults.get(metric, "")
 
 
-def get_vitals_trends_db(patient_id_str: str, from_date: str, get_connection: Any) -> List[TrajectoryPoint]:
+def get_vitals_trends_db(patient_id_str: str, from_date: str, get_connection: Any) -> list[TrajectoryPoint]:
     """Query form_vitals for bp and weight since from_date."""
     pid = _normalize_pid(patient_id_str)
     if pid is None:
@@ -56,7 +62,7 @@ def get_vitals_trends_db(patient_id_str: str, from_date: str, get_connection: An
         WHERE v.pid = %s AND f.deleted != 1 AND v.date >= %s
         ORDER BY v.date ASC
     """
-    points: List[TrajectoryPoint] = []
+    points: list[TrajectoryPoint] = []
     try:
         conn = get_connection()
         cursor = conn.cursor()
@@ -70,23 +76,45 @@ def get_vitals_trends_db(patient_id_str: str, from_date: str, get_connection: An
         effective = _to_iso(date_val)
         if bps is not None:
             try:
-                points.append(TrajectoryPoint(metric="bp_systolic", value=float(bps), unit="mmHg", effective_at=effective, source="form_vitals"))
+                points.append(
+                    TrajectoryPoint(
+                        metric="bp_systolic",
+                        value=float(bps),
+                        unit="mmHg",
+                        effective_at=effective,
+                        source="form_vitals",
+                    )
+                )
             except (ValueError, TypeError):
                 pass
         if bpd is not None:
             try:
-                points.append(TrajectoryPoint(metric="bp_diastolic", value=float(bpd), unit="mmHg", effective_at=effective, source="form_vitals"))
+                points.append(
+                    TrajectoryPoint(
+                        metric="bp_diastolic",
+                        value=float(bpd),
+                        unit="mmHg",
+                        effective_at=effective,
+                        source="form_vitals",
+                    )
+                )
             except (ValueError, TypeError):
                 pass
         if weight is not None:
             try:
-                points.append(TrajectoryPoint(metric="weight", value=float(weight), unit="kg", effective_at=effective, source="form_vitals"))
+                points.append(
+                    TrajectoryPoint(
+                        metric="weight", value=float(weight), unit="kg", effective_at=effective, source="form_vitals"
+                    )
+                )
             except (ValueError, TypeError):
                 pass
     return points
 
 
-def get_lab_trends_db(patient_id_str: str, from_date: str, result_code_filters: Optional[List[str]], get_connection: Any) -> List[TrajectoryPoint]:
+def get_lab_trends_db(
+    patient_id_str: str, from_date: str, result_code_filters: list[str] | None, get_connection: Any
+) -> list[TrajectoryPoint]:
     """Query procedure_result for lab results since from_date."""
     pid = _normalize_pid(patient_id_str)
     if pid is None:
@@ -101,8 +129,8 @@ def get_lab_trends_db(patient_id_str: str, from_date: str, result_code_filters: 
           AND COALESCE(NULLIF(pr.date, '0000-00-00 00:00:00'), rep.date_collected) >= %s
         ORDER BY effective_date ASC
     """
-    points: List[TrajectoryPoint] = []
-    accepted: Optional[set] = None
+    points: list[TrajectoryPoint] = []
+    accepted: set | None = None
     if result_code_filters is not None:
         accepted = {c.upper() for c in result_code_filters}
     try:
@@ -125,16 +153,22 @@ def get_lab_trends_db(patient_id_str: str, from_date: str, result_code_filters: 
             value = float(result_val)
         except (ValueError, TypeError):
             continue
-        points.append(TrajectoryPoint(
-            metric=metric, value=value,
-            unit=str(units or "").strip() or _default_unit(metric),
-            effective_at=_to_iso(date_val),
-            source="procedure_result", code=result_code,
-        ))
+        points.append(
+            TrajectoryPoint(
+                metric=metric,
+                value=value,
+                unit=str(units or "").strip() or _default_unit(metric),
+                effective_at=_to_iso(date_val),
+                source="procedure_result",
+                code=result_code,
+            )
+        )
     return points
 
 
-def get_questionnaire_trends_db(patient_id_str: str, from_date: str, questionnaire_name_filters: Optional[List[str]], get_connection: Any) -> List[TrajectoryPoint]:
+def get_questionnaire_trends_db(
+    patient_id_str: str, from_date: str, questionnaire_name_filters: list[str] | None, get_connection: Any
+) -> list[TrajectoryPoint]:
     """Query questionnaire_response for PHQ-9 or other instruments."""
     pid = _normalize_pid(patient_id_str)
     if pid is None:
@@ -145,7 +179,7 @@ def get_questionnaire_trends_db(patient_id_str: str, from_date: str, questionnai
         WHERE patient_id = %s AND create_time >= %s AND questionnaire_name LIKE %s
         ORDER BY create_time ASC
     """
-    points: List[TrajectoryPoint] = []
+    points: list[TrajectoryPoint] = []
     name_patterns = questionnaire_name_filters or ["%PHQ%"]
     try:
         conn = get_connection()
@@ -159,7 +193,15 @@ def get_questionnaire_trends_db(patient_id_str: str, from_date: str, questionnai
                     value = float(form_score)
                 except (ValueError, TypeError):
                     continue
-                points.append(TrajectoryPoint(metric="phq9", value=value, unit="score", effective_at=_to_iso(create_time), source="questionnaire_response"))
+                points.append(
+                    TrajectoryPoint(
+                        metric="phq9",
+                        value=value,
+                        unit="score",
+                        effective_at=_to_iso(create_time),
+                        source="questionnaire_response",
+                    )
+                )
         cursor.close()
     except Exception:
         return []

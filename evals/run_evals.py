@@ -10,6 +10,7 @@ Usage:
     python evals/run_evals.py --tag safety        # only safety-tagged cases
     python evals/run_evals.py --id vp_001         # single case
 """
+
 import argparse
 import inspect
 import json
@@ -17,7 +18,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 # Force mock mode for all evals
 os.environ.setdefault("OPENEMR_DATA_SOURCE", "mock")
@@ -39,61 +40,79 @@ CASES_PATH = Path(__file__).parent / "eval_cases.json"
 def _prepare_eval_drug_safety_db() -> None:
     """Point drug safety SQLite to a writable eval-local file."""
     import openemr_mcp.repositories.drug_safety as ds_repo
+
     eval_db_dir = Path(__file__).parent / ".eval_tmp"
     eval_db_dir.mkdir(parents=True, exist_ok=True)
     ds_repo._DB_PATH = eval_db_dir / "drug_safety_flags.db"
     ds_repo._conn = None
 
+
 def _dispatch(tool: str, inp: dict) -> Any:
     if tool == "patient_search":
         from openemr_mcp.tools.patient import run_patient_search
+
         return run_patient_search(**inp)
     if tool == "patient_by_id":
         from openemr_mcp.tools.patient import run_get_patient_by_id
+
         return run_get_patient_by_id(**inp)
     if tool == "appointment_list":
         from openemr_mcp.tools.appointments import run_appointment_list
+
         return run_appointment_list(**inp)
     if tool == "medication_list":
         from openemr_mcp.tools.medications import run_medication_list
+
         return run_medication_list(**inp)
     if tool == "drug_interaction_check":
         from openemr_mcp.tools.drug_interactions import run_drug_interaction_check
+
         return run_drug_interaction_check(**inp)
     if tool == "provider_search":
         from openemr_mcp.tools.providers import run_provider_search
+
         return run_provider_search(**inp)
     if tool == "fda_adverse_events":
         from openemr_mcp.tools.fda import run_fda_adverse_events
+
         return run_fda_adverse_events(**inp)
     if tool == "fda_drug_label":
         from openemr_mcp.tools.fda import run_fda_drug_label
+
         return run_fda_drug_label(**inp)
     if tool == "symptom_lookup":
         from openemr_mcp.tools.symptoms import run_symptom_lookup
+
         return run_symptom_lookup(**inp)
     if tool == "lab_trends":
         from openemr_mcp.tools.lab_trends import run_lab_trends
+
         return run_lab_trends(**inp)
     if tool == "vital_trends":
         from openemr_mcp.tools.vital_trends import run_vital_trends
+
         return run_vital_trends(**inp)
     if tool == "questionnaire_trends":
         from openemr_mcp.tools.questionnaire import run_questionnaire_trends
+
         return run_questionnaire_trends(**inp)
     if tool == "health_trajectory":
         from openemr_mcp.tools.trajectory import run_health_trajectory
+
         return run_health_trajectory(**inp)
     if tool == "visit_prep":
         from openemr_mcp.tools.visit_prep import run_visit_prep
+
         return run_visit_prep(**inp)
     if tool == "drug_safety_flag_create":
         _prepare_eval_drug_safety_db()
         from openemr_mcp.tools.drug_safety import run_create_drug_safety_flag
+
         return run_create_drug_safety_flag(**inp)
     if tool == "drug_safety_flag_list":
         _prepare_eval_drug_safety_db()
         from openemr_mcp.tools.drug_safety import run_get_drug_safety_flags
+
         return run_get_drug_safety_flags(**inp)
     if tool == "auth_interface":
         return None  # checked in assertions
@@ -109,6 +128,7 @@ def _dispatch(tool: str, inp: dict) -> Any:
 # ---------------------------------------------------------------------------
 # Assertion engine
 # ---------------------------------------------------------------------------
+
 
 def _get_attr(obj: Any, field: str) -> Any:
     """Return obj.field or obj[field], whichever exists."""
@@ -130,6 +150,7 @@ def _check(result: Any, expect: dict, tool: str) -> list[str]:
     # ---------- special contract checks ----------
     if tool == "auth_interface":
         from openemr_mcp.auth import OAuth2TokenManager
+
         m = expect.get("method_exists")
         if m and not callable(getattr(OAuth2TokenManager, m, None)):
             failures.append(f"OAuth2TokenManager missing method: {m}")
@@ -140,6 +161,7 @@ def _check(result: Any, expect: dict, tool: str) -> list[str]:
 
     if tool == "data_source_contract":
         from openemr_mcp import data_source
+
         src = inspect.getsource(data_source)
         contains = expect.get("source_contains")
         if contains and contains not in src:
@@ -151,6 +173,7 @@ def _check(result: Any, expect: dict, tool: str) -> list[str]:
 
     if tool == "config_env_contract":
         from openemr_mcp import config
+
         src = inspect.getsource(config)
         env_var = expect.get("env_var_read")
         if env_var and env_var not in src:
@@ -158,8 +181,8 @@ def _check(result: Any, expect: dict, tool: str) -> list[str]:
         return failures
 
     if tool == "no_fabrication_contract":
-        from openemr_mcp.tools import drug_interactions, symptoms
         from openemr_mcp.services import openfda_client
+        from openemr_mcp.tools import drug_interactions, symptoms
 
         checks = [
             ("drug_interactions.py", inspect.getsource(drug_interactions)),
@@ -339,6 +362,7 @@ def _check(result: Any, expect: dict, tool: str) -> list[str]:
 # Runner
 # ---------------------------------------------------------------------------
 
+
 def run_cases(cases: list[dict], verbose: bool = False) -> tuple[int, int, list[dict]]:
     passed = 0
     failed = 0
@@ -352,7 +376,7 @@ def run_cases(cases: list[dict], verbose: bool = False) -> tuple[int, int, list[
         desc = case.get("description", "")
 
         t0 = time.perf_counter()
-        error: Optional[str] = None
+        error: str | None = None
         result = None
         try:
             result = _dispatch(tool, inp)

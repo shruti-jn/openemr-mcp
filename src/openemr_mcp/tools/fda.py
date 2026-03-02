@@ -1,10 +1,11 @@
 """FDA drug safety tools — adverse events and drug labels."""
+
 import logging
 
-from openemr_mcp.services.openfda_client import get_adverse_events, get_drug_label
-from openemr_mcp.services.safety import sanitize_drug_name
 from openemr_mcp.repositories._errors import ToolError
 from openemr_mcp.schemas import FDAAdverseEventSummary, FDADrugLabelResult
+from openemr_mcp.services.openfda_client import get_adverse_events, get_drug_label
+from openemr_mcp.services.safety import sanitize_drug_name
 
 _log = logging.getLogger("openemr_mcp")
 

@@ -5,13 +5,12 @@ APIs:
   - Drug Adverse Events (FAERS): https://api.fda.gov/drug/event.json
   - Drug Labels:                  https://api.fda.gov/drug/label.json
 """
-from typing import Optional
 
 import httpx
 
 from openemr_mcp.config import settings
 from openemr_mcp.repositories._errors import ToolError
-from openemr_mcp.schemas import FDAAdverseEventSummary, FDAAdverseEvent, FDADrugLabelResult
+from openemr_mcp.schemas import FDAAdverseEvent, FDAAdverseEventSummary, FDADrugLabelResult
 
 _OPENFDA_BASE = "https://api.fda.gov"
 _REQUEST_TIMEOUT = 8.0
@@ -33,7 +32,9 @@ def _fda_headers() -> dict:
 # Mock data
 _MOCK_ADVERSE_EVENTS: dict = {
     "warfarin": FDAAdverseEventSummary(
-        drug_name="Warfarin", total_reports=15234, serious_reports=12891,
+        drug_name="Warfarin",
+        total_reports=15234,
+        serious_reports=12891,
         top_reactions=[
             FDAAdverseEvent(reaction="Hemorrhage", serious=True, report_count=4821),
             FDAAdverseEvent(reaction="Prothrombin time prolonged", serious=True, report_count=2103),
@@ -43,7 +44,9 @@ _MOCK_ADVERSE_EVENTS: dict = {
         ],
     ),
     "metformin": FDAAdverseEventSummary(
-        drug_name="Metformin", total_reports=8923, serious_reports=3214,
+        drug_name="Metformin",
+        total_reports=8923,
+        serious_reports=3214,
         top_reactions=[
             FDAAdverseEvent(reaction="Lactic acidosis", serious=True, report_count=1823),
             FDAAdverseEvent(reaction="Nausea", serious=False, report_count=1654),
@@ -53,7 +56,9 @@ _MOCK_ADVERSE_EVENTS: dict = {
         ],
     ),
     "lisinopril": FDAAdverseEventSummary(
-        drug_name="Lisinopril", total_reports=11203, serious_reports=4987,
+        drug_name="Lisinopril",
+        total_reports=11203,
+        serious_reports=4987,
         top_reactions=[
             FDAAdverseEvent(reaction="Angioedema", serious=True, report_count=3201),
             FDAAdverseEvent(reaction="Cough", serious=False, report_count=2893),
@@ -63,7 +68,9 @@ _MOCK_ADVERSE_EVENTS: dict = {
         ],
     ),
     "aspirin": FDAAdverseEventSummary(
-        drug_name="Aspirin", total_reports=9876, serious_reports=4321,
+        drug_name="Aspirin",
+        total_reports=9876,
+        serious_reports=4321,
         top_reactions=[
             FDAAdverseEvent(reaction="Gastrointestinal hemorrhage", serious=True, report_count=2341),
             FDAAdverseEvent(reaction="Gastrointestinal pain", serious=False, report_count=1876),
@@ -76,28 +83,37 @@ _MOCK_ADVERSE_EVENTS: dict = {
 
 _MOCK_DRUG_LABELS: dict = {
     "warfarin": FDADrugLabelResult(
-        drug_name="Warfarin", brand_names=["Coumadin", "Jantoven"], generic_name="warfarin sodium",
+        drug_name="Warfarin",
+        brand_names=["Coumadin", "Jantoven"],
+        generic_name="warfarin sodium",
         boxed_warning="WARNING: BLEEDING RISK. Warfarin can cause serious and fatal bleeding. Perform regular monitoring of INR.",
         warnings="Hemorrhage: Most serious risk. Monitor INR regularly.",
         contraindications="Hemorrhagic tendencies or blood dyscrasias.",
         indications_and_usage="Prophylaxis and treatment of thromboembolic complications.",
-        manufacturer="Bristol-Myers Squibb", has_boxed_warning=True,
+        manufacturer="Bristol-Myers Squibb",
+        has_boxed_warning=True,
     ),
     "metformin": FDADrugLabelResult(
-        drug_name="Metformin", brand_names=["Glucophage", "Fortamet", "Glumetza"], generic_name="metformin hydrochloride",
+        drug_name="Metformin",
+        brand_names=["Glucophage", "Fortamet", "Glumetza"],
+        generic_name="metformin hydrochloride",
         boxed_warning="WARNING: LACTIC ACIDOSIS. Fatal in approximately 50% of cases when it occurs.",
         warnings="Renal impairment: Obtain eGFR before starting; contraindicated when eGFR < 30.",
         contraindications="Severe renal impairment (eGFR < 30 mL/min/1.73 m²).",
         indications_and_usage="Adjunct to diet and exercise for type 2 diabetes.",
-        manufacturer="Various", has_boxed_warning=True,
+        manufacturer="Various",
+        has_boxed_warning=True,
     ),
     "lisinopril": FDADrugLabelResult(
-        drug_name="Lisinopril", brand_names=["Prinivil", "Zestril"], generic_name="lisinopril",
+        drug_name="Lisinopril",
+        brand_names=["Prinivil", "Zestril"],
+        generic_name="lisinopril",
         boxed_warning="WARNING: FETAL TOXICITY. Discontinue lisinopril when pregnancy is detected.",
         warnings="Angioedema: May occur at any time during treatment.",
         contraindications="History of angioedema related to previous ACE inhibitor treatment.",
         indications_and_usage="Treatment of hypertension, heart failure, and acute myocardial infarction.",
-        manufacturer="Various", has_boxed_warning=True,
+        manufacturer="Various",
+        has_boxed_warning=True,
     ),
 }
 
@@ -130,11 +146,15 @@ def _parse_adverse_events(drug_name: str, data: dict, limit: int) -> FDAAdverseE
             if is_serious:
                 serious_reactions.add(name)
     top = sorted(reaction_counts.items(), key=lambda x: x[1], reverse=True)[:limit]
-    reactions = [FDAAdverseEvent(reaction=name, serious=(name in serious_reactions), report_count=count) for name, count in top]
-    return FDAAdverseEventSummary(drug_name=drug_name, total_reports=total, serious_reports=serious_count, top_reactions=reactions)
+    reactions = [
+        FDAAdverseEvent(reaction=name, serious=(name in serious_reactions), report_count=count) for name, count in top
+    ]
+    return FDAAdverseEventSummary(
+        drug_name=drug_name, total_reports=total, serious_reports=serious_count, top_reactions=reactions
+    )
 
 
-def _truncate(text: Optional[str], max_chars: int = 400) -> Optional[str]:
+def _truncate(text: str | None, max_chars: int = 400) -> str | None:
     if not text:
         return text
     text = text.strip()
@@ -151,7 +171,7 @@ def _parse_drug_label(drug_name: str, data: dict) -> FDADrugLabelResult:
     generic_name = (openfda.get("generic_name") or [None])[0]
     manufacturer = (openfda.get("manufacturer_name") or [None])[0]
 
-    def _first(key: str) -> Optional[str]:
+    def _first(key: str) -> str | None:
         vals = r.get(key)
         if not vals:
             return None
@@ -159,11 +179,15 @@ def _parse_drug_label(drug_name: str, data: dict) -> FDADrugLabelResult:
 
     boxed = _first("boxed_warning")
     return FDADrugLabelResult(
-        drug_name=drug_name, brand_names=brand_names[:5], generic_name=generic_name,
-        boxed_warning=boxed, warnings=_first("warnings"),
+        drug_name=drug_name,
+        brand_names=brand_names[:5],
+        generic_name=generic_name,
+        boxed_warning=boxed,
+        warnings=_first("warnings"),
         contraindications=_first("contraindications"),
         indications_and_usage=_first("indications_and_usage"),
-        manufacturer=manufacturer, has_boxed_warning=bool(boxed),
+        manufacturer=manufacturer,
+        has_boxed_warning=bool(boxed),
     )
 
 
@@ -171,8 +195,16 @@ def get_adverse_events(drug_name: str, limit: int = 5) -> FDAAdverseEventSummary
     if settings.openfda_source == "mock":
         return _get_mock_adverse_events(drug_name)
     try:
-        params = _fda_params_with_key({"search": f'patient.drug.medicinalproduct:"{drug_name}"', "limit": min(limit * 5, 100)})
-        resp = httpx.get(f"{_OPENFDA_BASE}/drug/event.json", params=params, headers=_fda_headers(), timeout=_REQUEST_TIMEOUT, follow_redirects=True)
+        params = _fda_params_with_key(
+            {"search": f'patient.drug.medicinalproduct:"{drug_name}"', "limit": min(limit * 5, 100)}
+        )
+        resp = httpx.get(
+            f"{_OPENFDA_BASE}/drug/event.json",
+            params=params,
+            headers=_fda_headers(),
+            timeout=_REQUEST_TIMEOUT,
+            follow_redirects=True,
+        )
         resp.raise_for_status()
         return _parse_adverse_events(drug_name, resp.json(), limit)
     except httpx.HTTPStatusError as exc:
@@ -191,15 +223,19 @@ def get_drug_label(drug_name: str) -> FDADrugLabelResult:
     try:
         for search_field in ("openfda.generic_name", "openfda.brand_name"):
             params = _fda_params_with_key({"search": f'{search_field}:"{drug_name}"', "limit": 1})
-            resp = httpx.get(f"{_OPENFDA_BASE}/drug/label.json", params=params, headers=_fda_headers(), timeout=_REQUEST_TIMEOUT, follow_redirects=True)
+            resp = httpx.get(
+                f"{_OPENFDA_BASE}/drug/label.json",
+                params=params,
+                headers=_fda_headers(),
+                timeout=_REQUEST_TIMEOUT,
+                follow_redirects=True,
+            )
             if resp.status_code == 200:
                 data = resp.json()
                 if data.get("results"):
                     return _parse_drug_label(drug_name, data)
             elif resp.status_code >= 400 and resp.status_code != 404:
-                raise ToolError(
-                    f"OpenFDA drug label unavailable (HTTP {resp.status_code}); no fallback data used."
-                )
+                raise ToolError(f"OpenFDA drug label unavailable (HTTP {resp.status_code}); no fallback data used.")
         return FDADrugLabelResult(drug_name=drug_name)
     except Exception as exc:
         if isinstance(exc, ToolError):

@@ -2,8 +2,8 @@
 Drug interaction check tool.
 DRUG_INTERACTION_SOURCE: mock (default) | rxnorm | openfda
 """
+
 import logging
-from typing import List, Optional
 
 import httpx
 
@@ -13,17 +13,67 @@ from openemr_mcp.schemas import DrugInteraction, DrugInteractionResponse
 
 _log = logging.getLogger("openemr_mcp")
 
-_INTERACTION_DB: List[DrugInteraction] = [
-    DrugInteraction(drug_a="Warfarin",       drug_b="Aspirin",         severity="HIGH",     description="Concurrent use of Warfarin and Aspirin significantly increases the risk of serious bleeding events including gastrointestinal and intracranial hemorrhage."),
-    DrugInteraction(drug_a="Warfarin",       drug_b="Ibuprofen",       severity="HIGH",     description="NSAIDs like Ibuprofen can potentiate the anticoagulant effect of Warfarin and cause gastrointestinal bleeding."),
-    DrugInteraction(drug_a="Atorvastatin",   drug_b="Clarithromycin",  severity="HIGH",     description="Clarithromycin inhibits CYP3A4, dramatically increasing Atorvastatin plasma levels and risk of myopathy or rhabdomyolysis."),
-    DrugInteraction(drug_a="Lisinopril",     drug_b="Potassium Chloride", severity="MODERATE", description="ACE inhibitors like Lisinopril reduce potassium excretion. Adding potassium supplements risks hyperkalemia."),
-    DrugInteraction(drug_a="Metformin",      drug_b="Alcohol",         severity="MODERATE", description="Alcohol potentiates Metformin's effect on lactate metabolism, increasing the risk of lactic acidosis."),
-    DrugInteraction(drug_a="Sertraline",     drug_b="Lorazepam",       severity="MODERATE", description="CNS depressants like Lorazepam may enhance the sedative effects of Sertraline."),
-    DrugInteraction(drug_a="Digoxin",        drug_b="Furosemide",      severity="MODERATE", description="Furosemide-induced hypokalemia can potentiate Digoxin toxicity. Monitor potassium levels closely."),
-    DrugInteraction(drug_a="Methotrexate",   drug_b="Ibuprofen",       severity="HIGH",     description="NSAIDs reduce renal clearance of Methotrexate, potentially causing toxic accumulation."),
-    DrugInteraction(drug_a="Prednisone",     drug_b="Ibuprofen",       severity="MODERATE", description="Combining corticosteroids with NSAIDs substantially increases the risk of peptic ulcer disease."),
-    DrugInteraction(drug_a="Albuterol Inhaler", drug_b="Metoprolol Succinate", severity="MODERATE", description="Non-selective beta-blockers can antagonize the bronchodilator effect of Albuterol."),
+_INTERACTION_DB: list[DrugInteraction] = [
+    DrugInteraction(
+        drug_a="Warfarin",
+        drug_b="Aspirin",
+        severity="HIGH",
+        description="Concurrent use of Warfarin and Aspirin significantly increases the risk of serious bleeding events including gastrointestinal and intracranial hemorrhage.",
+    ),
+    DrugInteraction(
+        drug_a="Warfarin",
+        drug_b="Ibuprofen",
+        severity="HIGH",
+        description="NSAIDs like Ibuprofen can potentiate the anticoagulant effect of Warfarin and cause gastrointestinal bleeding.",
+    ),
+    DrugInteraction(
+        drug_a="Atorvastatin",
+        drug_b="Clarithromycin",
+        severity="HIGH",
+        description="Clarithromycin inhibits CYP3A4, dramatically increasing Atorvastatin plasma levels and risk of myopathy or rhabdomyolysis.",
+    ),
+    DrugInteraction(
+        drug_a="Lisinopril",
+        drug_b="Potassium Chloride",
+        severity="MODERATE",
+        description="ACE inhibitors like Lisinopril reduce potassium excretion. Adding potassium supplements risks hyperkalemia.",
+    ),
+    DrugInteraction(
+        drug_a="Metformin",
+        drug_b="Alcohol",
+        severity="MODERATE",
+        description="Alcohol potentiates Metformin's effect on lactate metabolism, increasing the risk of lactic acidosis.",
+    ),
+    DrugInteraction(
+        drug_a="Sertraline",
+        drug_b="Lorazepam",
+        severity="MODERATE",
+        description="CNS depressants like Lorazepam may enhance the sedative effects of Sertraline.",
+    ),
+    DrugInteraction(
+        drug_a="Digoxin",
+        drug_b="Furosemide",
+        severity="MODERATE",
+        description="Furosemide-induced hypokalemia can potentiate Digoxin toxicity. Monitor potassium levels closely.",
+    ),
+    DrugInteraction(
+        drug_a="Methotrexate",
+        drug_b="Ibuprofen",
+        severity="HIGH",
+        description="NSAIDs reduce renal clearance of Methotrexate, potentially causing toxic accumulation.",
+    ),
+    DrugInteraction(
+        drug_a="Prednisone",
+        drug_b="Ibuprofen",
+        severity="MODERATE",
+        description="Combining corticosteroids with NSAIDs substantially increases the risk of peptic ulcer disease.",
+    ),
+    DrugInteraction(
+        drug_a="Albuterol Inhaler",
+        drug_b="Metoprolol Succinate",
+        severity="MODERATE",
+        description="Non-selective beta-blockers can antagonize the bronchodilator effect of Albuterol.",
+    ),
 ]
 
 _PAIR_INDEX: dict = {}
@@ -36,9 +86,9 @@ _OPENFDA_BASE = "https://api.fda.gov"
 _OPENFDA_TIMEOUT = 8.0
 
 
-def _run_mock_check(medications: List[str]) -> DrugInteractionResponse:
+def _run_mock_check(medications: list[str]) -> DrugInteractionResponse:
     meds = [m.strip() for m in medications if m and m.strip()]
-    interactions: List[DrugInteraction] = []
+    interactions: list[DrugInteraction] = []
     for i in range(len(meds)):
         for j in range(i + 1, len(meds)):
             key = frozenset({meds[i].lower(), meds[j].lower()})
@@ -49,11 +99,11 @@ def _run_mock_check(medications: List[str]) -> DrugInteractionResponse:
     return DrugInteractionResponse(medications_checked=meds, interactions=interactions, has_critical=has_critical)
 
 
-def _run_openfda_check(medications: List[str]) -> Optional[DrugInteractionResponse]:
+def _run_openfda_check(medications: list[str]) -> DrugInteractionResponse | None:
     meds = [m.strip() for m in medications if m and m.strip()]
     if len(meds) < 2:
         return DrugInteractionResponse(medications_checked=meds, interactions=[], has_critical=False)
-    interactions: List[DrugInteraction] = []
+    interactions: list[DrugInteraction] = []
     has_critical = False
     # Pairwise queries to OpenFDA FAERS to see co-reported reactions
     for i in range(len(meds)):
@@ -80,11 +130,11 @@ def _run_openfda_check(medications: List[str]) -> Optional[DrugInteractionRespon
             severity = "HIGH" if total >= 50 else "MODERATE" if total >= 5 else "LOW"
             has_critical = has_critical or severity == "HIGH"
             top_reaction = counts[0].get("term", "Unknown") if counts else "Adverse event reported together"
-            
+
             # Skip if no meaningful signal
             if total == 0:
                 continue
-                
+
             interactions.append(
                 DrugInteraction(
                     drug_a=a,
@@ -100,7 +150,7 @@ def _run_openfda_check(medications: List[str]) -> Optional[DrugInteractionRespon
     return DrugInteractionResponse(medications_checked=meds, interactions=interactions, has_critical=has_critical)
 
 
-def _resolve_rxcui(drug_name: str) -> Optional[str]:
+def _resolve_rxcui(drug_name: str) -> str | None:
     try:
         r = httpx.get(f"{_RXNORM_BASE}/rxcui.json", params={"name": drug_name}, timeout=5.0)
         r.raise_for_status()
@@ -111,7 +161,7 @@ def _resolve_rxcui(drug_name: str) -> Optional[str]:
         return None
 
 
-def _fetch_rxnorm_interactions(rxcuis: list[str]) -> Optional[dict]:
+def _fetch_rxnorm_interactions(rxcuis: list[str]) -> dict | None:
     if not rxcuis:
         return None
     # RxNorm docs/examples use '+'-delimited rxcuis; some gateways reject space-delimited values.
@@ -126,7 +176,7 @@ def _fetch_rxnorm_interactions(rxcuis: list[str]) -> Optional[dict]:
     return None
 
 
-def _run_rxnorm_check(medications: List[str]) -> Optional[DrugInteractionResponse]:
+def _run_rxnorm_check(medications: list[str]) -> DrugInteractionResponse | None:
     meds = [m.strip() for m in medications if m and m.strip()]
     if len(meds) < 2:
         return DrugInteractionResponse(medications_checked=meds, interactions=[], has_critical=False)
@@ -140,7 +190,7 @@ def _run_rxnorm_check(medications: List[str]) -> Optional[DrugInteractionRespons
     data = _fetch_rxnorm_interactions(list(rxcui_map.values()))
     if data is None:
         return None
-    interactions: List[DrugInteraction] = []
+    interactions: list[DrugInteraction] = []
     seen_pairs: set = set()
     for group in data.get("fullInteractionTypeGroup") or []:
         source_name: str = group.get("sourceName", "")
@@ -158,16 +208,22 @@ def _run_rxnorm_check(medications: List[str]) -> Optional[DrugInteractionRespons
                     continue
                 seen_pairs.add(pair_key)
                 desc_lower = description.lower()
-                if is_onc_high or any(kw in desc_lower for kw in ("serious", "severe", "significant", "contraindicated")):
+                if is_onc_high or any(
+                    kw in desc_lower for kw in ("serious", "severe", "significant", "contraindicated")
+                ):
                     severity = "HIGH"
                 else:
                     severity = "MODERATE"
-                interactions.append(DrugInteraction(drug_a=drug_a.title(), drug_b=drug_b.title(), severity=severity, description=description))
+                interactions.append(
+                    DrugInteraction(
+                        drug_a=drug_a.title(), drug_b=drug_b.title(), severity=severity, description=description
+                    )
+                )
     has_critical = any(ix.severity == "HIGH" for ix in interactions)
     return DrugInteractionResponse(medications_checked=meds, interactions=interactions, has_critical=has_critical)
 
 
-def run_drug_interaction_check(medications: List[str]) -> DrugInteractionResponse:
+def run_drug_interaction_check(medications: list[str]) -> DrugInteractionResponse:
     """Check all pairs for known interactions."""
     if settings.drug_interaction_source == "rxnorm":
         result = _run_rxnorm_check(medications)

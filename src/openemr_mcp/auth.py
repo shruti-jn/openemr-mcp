@@ -2,11 +2,11 @@
 OpenEMR OAuth2 token management: registration, client enablement, password grant, refresh, cache.
 Sync implementation; no tokens or secrets in logs.
 """
+
 import logging
 import subprocess
 import threading
 import time
-from typing import Optional
 
 import httpx
 
@@ -24,6 +24,7 @@ CACHE_BUFFER_SECONDS = 60
 
 class OpenEMROAuthError(Exception):
     """Raised on OAuth2 registration or token failure. Message must not contain tokens or secrets."""
+
     pass
 
 
@@ -52,15 +53,18 @@ def register_client(scopes: str, _settings=None) -> tuple[str, str]:
     return (client_id, client_secret)
 
 
-def ensure_client_enabled(_settings=None, client_id: Optional[str] = None) -> None:
+def ensure_client_enabled(_settings=None, client_id: str | None = None) -> None:
     if not client_id:
         return
     s = _settings if _settings is not None else settings
     try:
         import pymysql
+
         conn = pymysql.connect(
-            host=s.openemr_db_host, port=s.openemr_db_port,
-            user=s.openemr_db_user, password=s.openemr_db_password,
+            host=s.openemr_db_host,
+            port=s.openemr_db_port,
+            user=s.openemr_db_user,
+            password=s.openemr_db_password,
             database=s.openemr_db_name,
         )
         try:
@@ -73,9 +77,17 @@ def ensure_client_enabled(_settings=None, client_id: Optional[str] = None) -> No
     except Exception as e:
         if s.openemr_docker_service and s.openemr_docker_cwd:
             cmd = [
-                "docker", "compose", "exec", "-T", s.openemr_docker_service,
-                "mariadb", "-u", s.openemr_db_user, f"-p{s.openemr_db_password}",
-                "-e", f"USE {s.openemr_db_name}; UPDATE oauth_clients SET is_enabled=1 WHERE client_id='{client_id}';",
+                "docker",
+                "compose",
+                "exec",
+                "-T",
+                s.openemr_docker_service,
+                "mariadb",
+                "-u",
+                s.openemr_db_user,
+                f"-p{s.openemr_db_password}",
+                "-e",
+                f"USE {s.openemr_db_name}; UPDATE oauth_clients SET is_enabled=1 WHERE client_id='{client_id}';",
             ]
             result = subprocess.run(cmd, cwd=s.openemr_docker_cwd, capture_output=True, text=True)
             if result.returncode != 0:
@@ -87,10 +99,10 @@ def ensure_client_enabled(_settings=None, client_id: Optional[str] = None) -> No
 class OAuth2TokenManager:
     def __init__(self, _settings=None):
         self._settings = _settings if _settings is not None else settings
-        self._client_id: Optional[str] = self._settings.openemr_oauth_client_id
-        self._client_secret: Optional[str] = self._settings.openemr_oauth_client_secret
-        self._access_token: Optional[str] = None
-        self._refresh_token: Optional[str] = None
+        self._client_id: str | None = self._settings.openemr_oauth_client_id
+        self._client_secret: str | None = self._settings.openemr_oauth_client_secret
+        self._access_token: str | None = None
+        self._refresh_token: str | None = None
         self._expires_at: float = 0
         self._lock = threading.Lock()
 

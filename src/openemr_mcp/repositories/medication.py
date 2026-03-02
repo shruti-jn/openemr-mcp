@@ -1,13 +1,15 @@
 """OpenEMR prescriptions access via MySQL."""
-from typing import List, Callable, Any, Optional
 
-from openemr_mcp.schemas import Medication
+from collections.abc import Callable
+from typing import Any
+
 from openemr_mcp.repositories._errors import ToolError
+from openemr_mcp.schemas import Medication
 
 DB_CONNECTION_ERROR_MSG = "OpenEMR database connection failed"
 
 
-def _normalize_patient_id(patient_id_str: str) -> Optional[int]:
+def _normalize_patient_id(patient_id_str: str) -> int | None:
     s = (patient_id_str or "").strip().lower()
     if s.startswith("p"):
         s = s[1:]
@@ -19,7 +21,7 @@ def _normalize_patient_id(patient_id_str: str) -> Optional[int]:
         return None
 
 
-def get_medications(patient_id_str: str, get_connection: Callable[[], Any]) -> List[Medication]:
+def get_medications(patient_id_str: str, get_connection: Callable[[], Any]) -> list[Medication]:
     """Fetch prescriptions for patient. Returns [] for bad/empty patient_id."""
     pid = _normalize_patient_id(patient_id_str)
     if pid is None:

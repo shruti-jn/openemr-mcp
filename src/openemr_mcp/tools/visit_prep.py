@@ -1,22 +1,25 @@
 """Visit prep tool: assemble brief from collectors + rules; verifier enforces evidence_ids."""
+
 import logging
 from datetime import datetime, timezone
-from typing import List, Optional
-
-logger = logging.getLogger(__name__)
 
 from openemr_mcp.schemas import (
-    Abstention, EvidenceStore, VisitPrepMetadata, VisitPrepResponse,
+    Abstention,
+    EvidenceStore,
+    VisitPrepMetadata,
+    VisitPrepResponse,
 )
+from openemr_mcp.services.visit_prep_assembler import assemble_and_verify
 from openemr_mcp.services.visit_prep_collectors_clinical import collect_clinical_evidence
 from openemr_mcp.services.visit_prep_collectors_context import collect_context_evidence
-from openemr_mcp.services.visit_prep_assembler import assemble_and_verify
+
+logger = logging.getLogger(__name__)
 
 
 def _build_clinical_payload(patient_id: str, window_months: int) -> dict:
     from openemr_mcp.tools.lab_trends import run_lab_trends
-    from openemr_mcp.tools.vital_trends import run_vital_trends
     from openemr_mcp.tools.medications import run_medication_list
+    from openemr_mcp.tools.vital_trends import run_vital_trends
 
     try:
         lab_trajectories = run_lab_trends(patient_id, window_months=window_months)
@@ -45,7 +48,15 @@ def _build_clinical_payload(patient_id: str, window_months: int) -> dict:
                 vitals.append({"type": "weight", "value": pt.value, "unit": traj.unit, "observed_at": pt.effective_at})
     for ts, bp in bp_by_ts.items():
         if "systolic" in bp and "diastolic" in bp:
-            vitals.append({"type": "bp", "value_systolic": bp["systolic"], "value_diastolic": bp["diastolic"], "unit": "mmHg", "observed_at": ts})
+            vitals.append(
+                {
+                    "type": "bp",
+                    "value_systolic": bp["systolic"],
+                    "value_diastolic": bp["diastolic"],
+                    "unit": "mmHg",
+                    "observed_at": ts,
+                }
+            )
 
     try:
         med_response = run_medication_list(patient_id)
@@ -53,13 +64,17 @@ def _build_clinical_payload(patient_id: str, window_months: int) -> dict:
     except Exception as exc:
         logger.warning("visit_prep: medication_list failed for %s: %s", patient_id, exc, exc_info=True)
         meds_raw = []
-    medications = [{"drug": m.drug, "dose": (m.dosage or ""), "route": "", "status": (m.status or ""), "effective_date": ""} for m in meds_raw]
+    medications = [
+        {"drug": m.drug, "dose": (m.dosage or ""), "route": "", "status": (m.status or ""), "effective_date": ""}
+        for m in meds_raw
+    ]
 
     return {"medications": medications, "labs": labs, "vitals": vitals}
 
 
 def _build_context_payload(patient_id: str) -> dict:
     from openemr_mcp.data_source import get_effective_data_source
+
     ds = get_effective_data_source()
     appointments: list = []
     demographics = None
@@ -68,9 +83,18 @@ def _build_context_payload(patient_id: str) -> dict:
     if ds == "db":
         from openemr_mcp.repositories.appointment import get_appointments
         from openemr_mcp.repositories.patient import get_openemr_connection, get_patient_by_id
+
         try:
             apts = get_appointments(patient_id, get_openemr_connection)
-            appointments = [{"appointment_id": a.appointment_id, "start_time": a.start_time or "", "status": "scheduled", "reason": a.reason or ""} for a in apts]
+            appointments = [
+                {
+                    "appointment_id": a.appointment_id,
+                    "start_time": a.start_time or "",
+                    "status": "scheduled",
+                    "reason": a.reason or "",
+                }
+                for a in apts
+            ]
         except Exception as exc:
             logger.warning("visit_prep: appointments failed for %s: %s", patient_id, exc, exc_info=True)
             appointments = []
@@ -91,12 +115,12 @@ def _get_evidence_store(clinical_payload: dict, context_payload: dict) -> Eviden
     context = collect_context_evidence(context_payload)
     combined = list(clinical.items) + list(context.items)
     combined.sort(key=lambda x: x.evidence_id)
-    combined.sort(key=lambda x: (x.evidence_id.split("::")[4] if "::" in x.evidence_id else ""), reverse=True)
+    combined.sort(key=lambda x: x.evidence_id.split("::")[4] if "::" in x.evidence_id else "", reverse=True)
     return EvidenceStore(items=combined)
 
 
-def _domain_abstentions(clinical_payload: dict, context_payload: dict) -> List[Abstention]:
-    empty: List[Abstention] = []
+def _domain_abstentions(clinical_payload: dict, context_payload: dict) -> list[Abstention]:
+    empty: list[Abstention] = []
     checks = [
         (clinical_payload.get("medications"), "medications"),
         (clinical_payload.get("labs"), "labs"),
@@ -106,23 +130,35 @@ def _domain_abstentions(clinical_payload: dict, context_payload: dict) -> List[A
     ]
     for value, domain in checks:
         if not value:
-            empty.append(Abstention(reason_code="missing_data", message=f"{domain} data unavailable for this patient.", missing_evidence_keys=[domain]))
+            empty.append(
+                Abstention(
+                    reason_code="missing_data",
+                    message=f"{domain} data unavailable for this patient.",
+                    missing_evidence_keys=[domain],
+                )
+            )
     if not context_payload.get("demographics"):
-        empty.append(Abstention(reason_code="missing_data", message="demographics data unavailable for this patient.", missing_evidence_keys=["demographics"]))
+        empty.append(
+            Abstention(
+                reason_code="missing_data",
+                message="demographics data unavailable for this patient.",
+                missing_evidence_keys=["demographics"],
+            )
+        )
     return empty
 
 
 def run_visit_prep(
     patient_id: str,
     window_months: int = 24,
-    evidence_store_override: Optional[EvidenceStore] = None,
+    evidence_store_override: EvidenceStore | None = None,
 ) -> VisitPrepResponse:
     """Assemble VisitPrepBrief from collectors + rules."""
     patient_id = (patient_id or "").strip() or "unknown"
 
     if evidence_store_override is not None:
         store = evidence_store_override
-        extra_abstentions: List[Abstention] = []
+        extra_abstentions: list[Abstention] = []
     else:
         clinical_payload = _build_clinical_payload(patient_id, window_months)
         context_payload = _build_context_payload(patient_id)

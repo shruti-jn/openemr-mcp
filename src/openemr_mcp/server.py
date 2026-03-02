@@ -10,6 +10,7 @@ Run via:
     openemr-mcp                    # stdio transport (default)
     OPENEMR_DATA_SOURCE=mock openemr-mcp
 """
+
 import asyncio
 import json
 import logging
@@ -97,7 +98,11 @@ _TOOLS = [
             "type": "object",
             "properties": {
                 "drug_name": {"type": "string", "description": "Generic or brand name of the drug"},
-                "limit": {"type": "integer", "description": "Max number of top reactions to return (default 5)", "default": 5},
+                "limit": {
+                    "type": "integer",
+                    "description": "Max number of top reactions to return (default 5)",
+                    "default": 5,
+                },
             },
             "required": ["drug_name"],
         },
@@ -137,9 +142,17 @@ _TOOLS = [
                 "patient_id": {"type": "string", "description": "OpenEMR patient ID"},
                 "drug_name": {"type": "string", "description": "Name of the drug being flagged"},
                 "description": {"type": "string", "description": "Clinical description of the safety concern"},
-                "flag_type": {"type": "string", "enum": ["adverse_event", "recall", "warning", "contraindication", "custom"], "default": "adverse_event"},
+                "flag_type": {
+                    "type": "string",
+                    "enum": ["adverse_event", "recall", "warning", "contraindication", "custom"],
+                    "default": "adverse_event",
+                },
                 "severity": {"type": "string", "enum": ["HIGH", "MODERATE", "LOW"], "default": "MODERATE"},
-                "source": {"type": "string", "enum": ["FDA_FAERS", "FDA_LABEL", "FDA_RECALL", "CLINICIAN", "AGENT"], "default": "AGENT"},
+                "source": {
+                    "type": "string",
+                    "enum": ["FDA_FAERS", "FDA_LABEL", "FDA_RECALL", "CLINICIAN", "AGENT"],
+                    "default": "AGENT",
+                },
             },
             "required": ["patient_id", "drug_name", "description"],
         },
@@ -151,7 +164,11 @@ _TOOLS = [
             "type": "object",
             "properties": {
                 "patient_id": {"type": "string", "description": "OpenEMR patient ID"},
-                "status_filter": {"type": "string", "enum": ["active", "resolved", "under_review"], "description": "Filter by flag status (optional)"},
+                "status_filter": {
+                    "type": "string",
+                    "enum": ["active", "resolved", "under_review"],
+                    "description": "Filter by flag status (optional)",
+                },
             },
             "required": ["patient_id"],
         },
@@ -188,8 +205,16 @@ _TOOLS = [
             "type": "object",
             "properties": {
                 "patient_id": {"type": "string", "description": "OpenEMR patient ID"},
-                "metrics": {"type": "array", "items": {"type": "string", "enum": ["a1c", "ldl", "egfr"]}, "description": "Metrics to return (default: all)"},
-                "window_months": {"type": "integer", "description": "Lookback window in months (default 24)", "default": 24},
+                "metrics": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": ["a1c", "ldl", "egfr"]},
+                    "description": "Metrics to return (default: all)",
+                },
+                "window_months": {
+                    "type": "integer",
+                    "description": "Lookback window in months (default 24)",
+                    "default": 24,
+                },
             },
             "required": ["patient_id"],
         },
@@ -201,8 +226,16 @@ _TOOLS = [
             "type": "object",
             "properties": {
                 "patient_id": {"type": "string", "description": "OpenEMR patient ID"},
-                "metrics": {"type": "array", "items": {"type": "string", "enum": ["weight", "bp_systolic", "bp_diastolic"]}, "description": "Metrics to return (default: all)"},
-                "window_months": {"type": "integer", "description": "Lookback window in months (default 24)", "default": 24},
+                "metrics": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": ["weight", "bp_systolic", "bp_diastolic"]},
+                    "description": "Metrics to return (default: all)",
+                },
+                "window_months": {
+                    "type": "integer",
+                    "description": "Lookback window in months (default 24)",
+                    "default": 24,
+                },
             },
             "required": ["patient_id"],
         },
@@ -214,8 +247,16 @@ _TOOLS = [
             "type": "object",
             "properties": {
                 "patient_id": {"type": "string", "description": "OpenEMR patient ID"},
-                "instrument": {"type": "string", "description": "Questionnaire name (default 'PHQ-9')", "default": "PHQ-9"},
-                "window_months": {"type": "integer", "description": "Lookback window in months (default 24)", "default": 24},
+                "instrument": {
+                    "type": "string",
+                    "description": "Questionnaire name (default 'PHQ-9')",
+                    "default": "PHQ-9",
+                },
+                "window_months": {
+                    "type": "integer",
+                    "description": "Lookback window in months (default 24)",
+                    "default": 24,
+                },
             },
             "required": ["patient_id"],
         },
@@ -227,8 +268,16 @@ _TOOLS = [
             "type": "object",
             "properties": {
                 "patient_id": {"type": "string", "description": "OpenEMR patient ID"},
-                "window_months": {"type": "integer", "description": "Lookback window in months (default 24)", "default": 24},
-                "metrics": {"type": "array", "items": {"type": "string"}, "description": "Subset of metrics to include (default: all)"},
+                "window_months": {
+                    "type": "integer",
+                    "description": "Lookback window in months (default 24)",
+                    "default": 24,
+                },
+                "metrics": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Subset of metrics to include (default: all)",
+                },
             },
             "required": ["patient_id"],
         },
@@ -240,7 +289,11 @@ _TOOLS = [
             "type": "object",
             "properties": {
                 "patient_id": {"type": "string", "description": "OpenEMR patient ID"},
-                "window_months": {"type": "integer", "description": "Clinical data lookback window in months (default 24)", "default": 24},
+                "window_months": {
+                    "type": "integer",
+                    "description": "Clinical data lookback window in months (default 24)",
+                    "default": 24,
+                },
             },
             "required": ["patient_id"],
         },
@@ -277,22 +330,27 @@ async def call_tool(name: str, arguments: dict) -> list[types.TextContent]:
 def _dispatch(name: str, args: dict) -> Any:
     if name == "openemr_patient_search":
         from openemr_mcp.tools.patient import run_patient_search
+
         return run_patient_search(args["query"])
 
     if name == "openemr_appointment_list":
         from openemr_mcp.tools.appointments import run_appointment_list
+
         return run_appointment_list(args["patient_id"])
 
     if name == "openemr_medication_list":
         from openemr_mcp.tools.medications import run_medication_list
+
         return run_medication_list(args["patient_id"])
 
     if name == "openemr_drug_interaction_check":
         from openemr_mcp.tools.drug_interactions import run_drug_interaction_check
+
         return run_drug_interaction_check(args["medications"])
 
     if name == "openemr_provider_search":
         from openemr_mcp.tools.providers import run_provider_search
+
         return run_provider_search(
             specialty=args.get("specialty"),
             location=args.get("location"),
@@ -300,18 +358,22 @@ def _dispatch(name: str, args: dict) -> Any:
 
     if name == "openemr_fda_adverse_events":
         from openemr_mcp.tools.fda import run_fda_adverse_events
+
         return run_fda_adverse_events(args["drug_name"], limit=args.get("limit", 5))
 
     if name == "openemr_fda_drug_label":
         from openemr_mcp.tools.fda import run_fda_drug_label
+
         return run_fda_drug_label(args["drug_name"])
 
     if name == "openemr_symptom_lookup":
         from openemr_mcp.tools.symptoms import run_symptom_lookup
+
         return run_symptom_lookup(args["symptoms"])
 
     if name == "openemr_drug_safety_flag_create":
         from openemr_mcp.tools.drug_safety import run_create_drug_safety_flag
+
         return run_create_drug_safety_flag(
             patient_id=args["patient_id"],
             drug_name=args["drug_name"],
@@ -323,6 +385,7 @@ def _dispatch(name: str, args: dict) -> Any:
 
     if name == "openemr_drug_safety_flag_list":
         from openemr_mcp.tools.drug_safety import run_get_drug_safety_flags
+
         return run_get_drug_safety_flags(
             patient_id=args["patient_id"],
             status_filter=args.get("status_filter"),
@@ -330,6 +393,7 @@ def _dispatch(name: str, args: dict) -> Any:
 
     if name == "openemr_drug_safety_flag_update":
         from openemr_mcp.tools.drug_safety import run_update_drug_safety_flag
+
         result = run_update_drug_safety_flag(
             flag_id=args["flag_id"],
             severity=args.get("severity"),
@@ -340,11 +404,13 @@ def _dispatch(name: str, args: dict) -> Any:
 
     if name == "openemr_drug_safety_flag_delete":
         from openemr_mcp.tools.drug_safety import run_delete_drug_safety_flag
+
         deleted = run_delete_drug_safety_flag(args["flag_id"])
         return {"deleted": deleted, "flag_id": args["flag_id"]}
 
     if name == "openemr_lab_trends":
         from openemr_mcp.tools.lab_trends import run_lab_trends
+
         return run_lab_trends(
             patient_id=args["patient_id"],
             metrics=args.get("metrics"),
@@ -353,6 +419,7 @@ def _dispatch(name: str, args: dict) -> Any:
 
     if name == "openemr_vital_trends":
         from openemr_mcp.tools.vital_trends import run_vital_trends
+
         return run_vital_trends(
             patient_id=args["patient_id"],
             metrics=args.get("metrics"),
@@ -361,6 +428,7 @@ def _dispatch(name: str, args: dict) -> Any:
 
     if name == "openemr_questionnaire_trends":
         from openemr_mcp.tools.questionnaire import run_questionnaire_trends
+
         return run_questionnaire_trends(
             patient_id=args["patient_id"],
             instrument=args.get("instrument", "PHQ-9"),
@@ -369,6 +437,7 @@ def _dispatch(name: str, args: dict) -> Any:
 
     if name == "openemr_health_trajectory":
         from openemr_mcp.tools.trajectory import run_health_trajectory
+
         return run_health_trajectory(
             patient_id=args["patient_id"],
             window_months=args.get("window_months", 24),
@@ -377,6 +446,7 @@ def _dispatch(name: str, args: dict) -> Any:
 
     if name == "openemr_visit_prep":
         from openemr_mcp.tools.visit_prep import run_visit_prep
+
         return run_visit_prep(
             patient_id=args["patient_id"],
             window_months=args.get("window_months", 24),

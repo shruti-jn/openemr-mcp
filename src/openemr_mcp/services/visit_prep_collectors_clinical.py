@@ -1,7 +1,8 @@
 """Deterministic clinical evidence collectors for visit prep: meds, labs, vitals. Facts only, stable evidence_id."""
+
 import hashlib
 import re
-from typing import Any, List
+from typing import Any
 
 from openemr_mcp.schemas import EvidenceItem, EvidenceStore
 
@@ -35,7 +36,7 @@ def collect_medications(payload: dict) -> EvidenceStore:
     meds = payload.get("medications") or []
     if not meds:
         return EvidenceStore(items=[])
-    items: List[EvidenceItem] = []
+    items: list[EvidenceItem] = []
     for m in meds:
         drug = (m.get("drug") or "").strip() or "unknown"
         dose = (m.get("dose") or "").strip()
@@ -54,9 +55,7 @@ def collect_medications(payload: dict) -> EvidenceStore:
             summary += f" {route}"
         if status:
             summary += f" ({status})"
-        items.append(
-            EvidenceItem(evidence_id=evidence_id, source="meds", summary=summary)
-        )
+        items.append(EvidenceItem(evidence_id=evidence_id, source="meds", summary=summary))
     items.sort(key=lambda x: x.evidence_id)
     items.sort(key=lambda x: x.evidence_id.split("::")[4], reverse=True)
     return EvidenceStore(items=items)
@@ -81,9 +80,7 @@ def collect_labs(payload: dict) -> EvidenceStore:
         h = _hash8(canonical)
         evidence_id = f"ev::labs::{code}::{field}::{observed}::{h}"
         summary = f"{code} {value} {unit}".strip()
-        items.append(
-            EvidenceItem(evidence_id=evidence_id, source="labs", summary=summary)
-        )
+        items.append(EvidenceItem(evidence_id=evidence_id, source="labs", summary=summary))
     items.sort(key=lambda x: x.evidence_id)
     items.sort(key=lambda x: x.evidence_id.split("::")[4], reverse=True)
     return EvidenceStore(items=items)
@@ -109,9 +106,7 @@ def collect_vitals(payload: dict) -> EvidenceStore:
         h = _hash8(canonical)
         evidence_id = f"ev::vitals::{vtype}::{field}::{observed}::{h}"
         summary = f"{vtype} {val_str} {unit}".strip()
-        items.append(
-            EvidenceItem(evidence_id=evidence_id, source="vitals", summary=summary)
-        )
+        items.append(EvidenceItem(evidence_id=evidence_id, source="vitals", summary=summary))
     items.sort(key=lambda x: x.evidence_id)
     items.sort(key=lambda x: x.evidence_id.split("::")[4], reverse=True)
     return EvidenceStore(items=items)
@@ -124,7 +119,7 @@ def collect_clinical_evidence(payload: dict) -> EvidenceStore:
         collect_labs(payload),
         collect_vitals(payload),
     ]
-    combined: List[EvidenceItem] = []
+    combined: list[EvidenceItem] = []
     for s in stores:
         combined.extend(s.items)
     combined.sort(key=lambda x: x.evidence_id)

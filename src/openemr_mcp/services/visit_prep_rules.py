@@ -1,7 +1,7 @@
 """Deterministic rule engine for visit prep: top risks, changes, care gaps, agenda. No LLM; evidence-linked only."""
+
 import re
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
 
 from openemr_mcp.schemas import Abstention, Claim, EvidenceItem, EvidenceStore, VisitPrepSection
 
@@ -21,21 +21,21 @@ class RuleEngineResult:
     abstentions: VisitPrepSection
 
 
-def _parse_evidence_id(evidence_id: str) -> Tuple[str, str, str]:
+def _parse_evidence_id(evidence_id: str) -> tuple[str, str, str]:
     parts = evidence_id.split("::")
     if len(parts) >= 5:
         return (parts[1], parts[2], parts[4])
     return ("", "", "")
 
 
-def _parse_lab_value(summary: str, entity: str) -> Optional[float]:
+def _parse_lab_value(summary: str, entity: str) -> float | None:
     if entity in ("ldl", "a1c"):
         m = re.search(r"[\d.]+", summary)
         return float(m.group()) if m else None
     return None
 
 
-def _parse_bp_systolic(summary: str) -> Optional[int]:
+def _parse_bp_systolic(summary: str) -> int | None:
     m = re.search(r"bp\s+(\d+)/\d+", summary, re.I)
     if m:
         return int(m.group(1))
@@ -43,7 +43,7 @@ def _parse_bp_systolic(summary: str) -> Optional[int]:
     return int(m.group(1)) if m else None
 
 
-def _latest_per_entity(items: List[EvidenceItem]) -> List[EvidenceItem]:
+def _latest_per_entity(items: list[EvidenceItem]) -> list[EvidenceItem]:
     by_key: dict = {}
     for item in items:
         source, entity, iso_ts = _parse_evidence_id(item.evidence_id)
@@ -56,9 +56,9 @@ def _latest_per_entity(items: List[EvidenceItem]) -> List[EvidenceItem]:
     return out
 
 
-def _risk_claims(store: EvidenceStore) -> List[Claim]:
+def _risk_claims(store: EvidenceStore) -> list[Claim]:
     latest = _latest_per_entity(store.items)
-    claims: List[Claim] = []
+    claims: list[Claim] = []
     for item in latest:
         source, entity, _ = _parse_evidence_id(item.evidence_id)
         if source == "labs" and entity == "ldl":
@@ -74,7 +74,7 @@ def _risk_claims(store: EvidenceStore) -> List[Claim]:
             if v is not None and v >= BP_SYSTOLIC_RISK_THRESHOLD:
                 claims.append(Claim(text=f"Elevated BP ({item.summary.strip()})", evidence_ids=[item.evidence_id]))
 
-    def sort_key(c: Claim) -> Tuple[int, str]:
+    def sort_key(c: Claim) -> tuple[int, str]:
         eid = c.evidence_ids[0]
         _, entity, _ = _parse_evidence_id(eid)
         try:
@@ -87,7 +87,7 @@ def _risk_claims(store: EvidenceStore) -> List[Claim]:
     return claims
 
 
-def _changes_claims(store: EvidenceStore) -> List[Claim]:
+def _changes_claims(store: EvidenceStore) -> list[Claim]:
     by_key: dict = {}
     for item in store.items:
         source, entity, iso_ts = _parse_evidence_id(item.evidence_id)
@@ -95,7 +95,7 @@ def _changes_claims(store: EvidenceStore) -> List[Claim]:
         if key not in by_key:
             by_key[key] = []
         by_key[key].append((item, iso_ts))
-    claims: List[Claim] = []
+    claims: list[Claim] = []
     for key, pairs in by_key.items():
         pairs.sort(key=lambda p: p[1], reverse=True)
         if len(pairs) < 2:
@@ -108,15 +108,25 @@ def _changes_claims(store: EvidenceStore) -> List[Claim]:
             v_prev = _parse_lab_value(prev_item.summary, entity)
             if v_lat is not None and v_prev is not None:
                 if v_lat > v_prev:
-                    claims.append(Claim(text=f"{entity.upper()} increased: {prev_item.summary} -> {latest_item.summary}", evidence_ids=[prev_item.evidence_id, latest_item.evidence_id]))
+                    claims.append(
+                        Claim(
+                            text=f"{entity.upper()} increased: {prev_item.summary} -> {latest_item.summary}",
+                            evidence_ids=[prev_item.evidence_id, latest_item.evidence_id],
+                        )
+                    )
                 elif v_lat < v_prev:
-                    claims.append(Claim(text=f"{entity.upper()} improved: {prev_item.summary} -> {latest_item.summary}", evidence_ids=[prev_item.evidence_id, latest_item.evidence_id]))
+                    claims.append(
+                        Claim(
+                            text=f"{entity.upper()} improved: {prev_item.summary} -> {latest_item.summary}",
+                            evidence_ids=[prev_item.evidence_id, latest_item.evidence_id],
+                        )
+                    )
     claims.sort(key=lambda c: c.evidence_ids[0])
     return claims
 
 
-def _medication_safety_claims(store: EvidenceStore) -> List[Claim]:
-    claims: List[Claim] = []
+def _medication_safety_claims(store: EvidenceStore) -> list[Claim]:
+    claims: list[Claim] = []
     for item in store.items:
         source, _, _ = _parse_evidence_id(item.evidence_id)
         if source == "meds":
@@ -125,8 +135,8 @@ def _medication_safety_claims(store: EvidenceStore) -> List[Claim]:
     return claims
 
 
-def _care_gaps_claims(store: EvidenceStore) -> List[Claim]:
-    claims: List[Claim] = []
+def _care_gaps_claims(store: EvidenceStore) -> list[Claim]:
+    claims: list[Claim] = []
     for item in store.items:
         if item.source == "appointments" and "missed" in item.summary.lower():
             claims.append(Claim(text=f"Missed appointment: {item.summary}", evidence_ids=[item.evidence_id]))
@@ -134,8 +144,10 @@ def _care_gaps_claims(store: EvidenceStore) -> List[Claim]:
     return claims
 
 
-def _agenda_from_rules(top_risks: VisitPrepSection, care_gaps: VisitPrepSection, medication_safety: VisitPrepSection) -> VisitPrepSection:
-    claims: List[Claim] = []
+def _agenda_from_rules(
+    top_risks: VisitPrepSection, care_gaps: VisitPrepSection, medication_safety: VisitPrepSection
+) -> VisitPrepSection:
+    claims: list[Claim] = []
     for c in top_risks.claims:
         claims.append(Claim(text=f"Discuss: {c.text}", evidence_ids=list(c.evidence_ids)))
     for c in care_gaps.claims:
@@ -148,9 +160,15 @@ def _agenda_from_rules(top_risks: VisitPrepSection, care_gaps: VisitPrepSection,
 
 
 def _abstentions_for_missing(store: EvidenceStore) -> VisitPrepSection:
-    abstentions: List[Abstention] = []
+    abstentions: list[Abstention] = []
     if not store.items:
-        abstentions.append(Abstention(reason_code="MISSING_EVIDENCE", message="No clinical evidence available for rule evaluation.", missing_evidence_keys=["labs", "vitals", "meds"]))
+        abstentions.append(
+            Abstention(
+                reason_code="MISSING_EVIDENCE",
+                message="No clinical evidence available for rule evaluation.",
+                missing_evidence_keys=["labs", "vitals", "meds"],
+            )
+        )
     return VisitPrepSection(claims=[], abstentions=abstentions)
 
 
@@ -166,7 +184,10 @@ def evaluate_visit_prep_rules(evidence_store: EvidenceStore) -> RuleEngineResult
     care_gaps_section = VisitPrepSection(claims=care_gaps_claims, abstentions=[])
     agenda_section = _agenda_from_rules(top_risks_section, care_gaps_section, med_section)
     return RuleEngineResult(
-        top_risks=top_risks_section, changes_since_last_visit=changes_section,
-        medication_safety=med_section, care_gaps=care_gaps_section,
-        agenda=agenda_section, abstentions=abstentions_section,
+        top_risks=top_risks_section,
+        changes_since_last_visit=changes_section,
+        medication_safety=med_section,
+        care_gaps=care_gaps_section,
+        agenda=agenda_section,
+        abstentions=abstentions_section,
     )

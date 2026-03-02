@@ -1,17 +1,19 @@
 """OpenEMR provider (user) access via MySQL."""
-from typing import List, Callable, Any, Optional
 
-from openemr_mcp.schemas import Provider
+from collections.abc import Callable
+from typing import Any
+
 from openemr_mcp.repositories._errors import ToolError
+from openemr_mcp.schemas import Provider
 
 DB_CONNECTION_ERROR_MSG = "OpenEMR database connection failed"
 
 
 def search_providers(
-    specialty: Optional[str],
-    location: Optional[str],
+    specialty: str | None,
+    location: str | None,
     get_connection: Callable[[], Any],
-) -> List[Provider]:
+) -> list[Provider]:
     """Search active, authorized providers by specialty and/or location."""
     spec = (specialty or "").strip() or None
     loc = (location or "").strip() or None
@@ -42,13 +44,15 @@ def search_providers(
             lname_s = (lname or "").strip()
             name_parts = [n for n in [fname_s, lname_s] if n]
             full_name = ("Dr. " + " ".join(name_parts)).strip() if name_parts else "Unknown"
-            out.append(Provider(
-                provider_id="prov" + str(user_id),
-                full_name=full_name,
-                specialty=(specialty_val or "").strip() or "General",
-                location=(facility_val or "").strip(),
-                accepting_new_patients=True,
-            ))
+            out.append(
+                Provider(
+                    provider_id="prov" + str(user_id),
+                    full_name=full_name,
+                    specialty=(specialty_val or "").strip() or "General",
+                    location=(facility_val or "").strip(),
+                    accepting_new_patients=True,
+                )
+            )
         return out
     except ToolError:
         raise
